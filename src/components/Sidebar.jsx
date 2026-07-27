@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { id: 'Trello', label: 'تريلو', icon: 'ph-kanban' },
   { id: 'Kpi', label: 'التقارير', icon: 'ph-chart-bar' },
   { id: 'Motivation', label: 'مساحة التحفيز', icon: 'ph-rocket-launch' },
+  { id: 'Archive', label: 'الأرشيف', icon: 'ph-archive' },
   { id: 'Settings', label: 'الإعدادات', icon: 'ph-gear-six' },
 ];
 
@@ -18,6 +19,7 @@ export default function Sidebar({
   onToggleTheme,
   pendingCount,
   trelloCount,
+  archiveCount = 0,
   totalCount,
   connected,
   onExport,
@@ -47,12 +49,10 @@ export default function Sidebar({
 
       <nav>
         {NAV_ITEMS.map((item) => {
-          const badge =
-            item.id === 'Pending' && pendingCount > 0
-              ? pendingCount
-              : item.id === 'Trello' && trelloCount > 0
-                ? trelloCount
-                : null;
+          let badge = null;
+          if (item.id === 'Pending' && pendingCount > 0) badge = pendingCount;
+          else if (item.id === 'Trello' && trelloCount > 0) badge = trelloCount;
+          else if (item.id === 'Archive' && archiveCount > 0) badge = archiveCount;
           return (
             <button
               key={item.id}
