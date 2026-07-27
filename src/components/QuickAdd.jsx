@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { parseSmartInput } from '../utils/dateUtils';
-import { TASK_CONTEXTS } from '../utils/taskMeta';
 
 const QUADRANTS = [
   { id: 'important-urgent', color: 'var(--danger)', label: 'مهم ومستعجل' },
@@ -9,10 +8,9 @@ const QUADRANTS = [
   { id: 'not-important-not-urgent', color: 'var(--text-secondary)', label: 'غير مهم غير مستعجل' },
 ];
 
-export default function FloatingSmartBar({ onAddTask, onOpenAdvanced }) {
+export default function FloatingSmartBar({ onAddTask, onOpenAdvanced, activeContext = 'work' }) {
   const [value, setValue] = useState('');
   const [quadrant, setQuadrant] = useState('important-urgent');
-  const [context, setContext] = useState('work');
   const [minimized, setMinimized] = useState(false);
 
   const submit = (e) => {
@@ -20,7 +18,7 @@ export default function FloatingSmartBar({ onAddTask, onOpenAdvanced }) {
     const text = value.trim();
     if (!text) return;
     const { title, dueDate } = parseSmartInput(text);
-    onAddTask(title || text, quadrant, dueDate, '', 1, { context });
+    onAddTask(title || text, quadrant, dueDate, '', 1, { context: activeContext });
     setValue('');
   };
 
@@ -31,9 +29,9 @@ export default function FloatingSmartBar({ onAddTask, onOpenAdvanced }) {
           type="button"
           className="floating-restore-btn"
           onClick={() => setMinimized(false)}
-          title="إظهار المساعد الذكي"
+          title="إظهار شريط الإضافة"
         >
-          <i className="ph ph-sparkle"></i>
+          <i className="ph ph-plus-circle"></i>
           <i className="ph ph-caret-up"></i>
         </button>
       </div>
@@ -66,27 +64,12 @@ export default function FloatingSmartBar({ onAddTask, onOpenAdvanced }) {
           ))}
         </div>
 
-        <div className="floating-context-toggle" title="مساحة المهمة">
-          {TASK_CONTEXTS.map((ctx) => (
-            <button
-              key={ctx.id}
-              type="button"
-              className={`floating-context-btn ${context === ctx.id ? 'active' : ''}`}
-              onClick={() => setContext(ctx.id)}
-              title={ctx.label}
-              aria-label={ctx.label}
-            >
-              <i className={`ph ${ctx.icon}`}></i>
-            </button>
-          ))}
-        </div>
-
         <div className="floating-input-wrap">
-          <i className="ph ph-sparkle floating-ai-icon"></i>
+          <i className="ph ph-plus floating-ai-icon"></i>
           <input
             type="text"
             className="floating-input"
-            placeholder="اكتب مهمة… (اجتماع الخميس / 15/8/2026)"
+            placeholder="اسم المهمة… (اختياري: الخميس / 15/8/2026)"
             value={value}
             onChange={(e) => setValue(e.target.value)}
           />
