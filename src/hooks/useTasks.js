@@ -393,6 +393,60 @@ export function useTasks(showToast) {
     [showToast]
   );
 
+  /**
+   * يستبدل مهام مساحة واحدة فقط — لا يمس باقي المساحات.
+   * ملاحظة: لا يزال يستخدم delete على مستوى المساحة حتى تُفعَّل الأرشفة لاحقاً.
+   */
+  const replaceTasksInContext = useCallback(
+    async (context, importedTasks) => {
+      const ctx = normalizeTaskContext(context);
+
+      const { error: deleteError } = await supabase.from(TABLE).delete().eq('context', ctx);
+      if (deleteError) {
+        console.error(deleteError);
+        showToast?.('حدث خطأ أثناء استبدال مهام المساحة', 'ph-x-circle', 'error');
+        return;
+      }
+
+      const rows = importedTasks.map((t, i) => ({
+        title: t.title,
+        quadrant: t.quadrant,
+        context: ctx,
+        subtasks: normalizeSubtasks(t.subtasks),
+        completed: !!t.completed,
+        notes: t.notes || '',
+        due_date: t.dueDate || null,
+        duration: t.duration || 1,
+        sort_order: i,
+        recurrence: t.recurrence || null,
+        recurrence_days: t.recurrence === 'weekly' ? t.recurrenceDays || [] : null,
+        completed_at: t.completed ? new Date().toISOString() : null,
+      }));
+
+      if (rows.length === 0) {
+        setTasks((prev) => prev.filter((t) => normalizeTaskContext(t.context) !== ctx));
+        showToast?.('تم تفريغ مهام المساحة الحالية', 'ph-upload-simple');
+        return;
+      }
+
+      const { data, error: insertError } = await supabase.from(TABLE).insert(rows).select();
+      if (insertError) {
+        console.error(insertError);
+        showToast?.('حدث خطأ أثناء استيراد المهام', 'ph-x-circle', 'error');
+        await fetchTasks(false);
+        return;
+      }
+
+      const inserted = (data ?? []).map(fromRow);
+      setTasks((prev) => [
+        ...prev.filter((t) => normalizeTaskContext(t.context) !== ctx),
+        ...inserted,
+      ]);
+      showToast?.(`تم استيراد ${rows.length} مهمة في المساحة الحالية`, 'ph-upload-simple');
+    },
+    [showToast, fetchTasks]
+  );
+
   return {
     tasks,
     loading,
@@ -406,6 +460,7 @@ export function useTasks(showToast) {
     rescheduleTask,
     reorderInQuadrant,
     replaceAllTasks,
+    replaceTasksInContext,
     refetch: () => fetchTasks(false),
   };
 }
