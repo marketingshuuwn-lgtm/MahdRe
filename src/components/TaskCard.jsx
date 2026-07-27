@@ -99,8 +99,9 @@ export default function TaskCard({
           className="btn-icon"
           onClick={(e) => {
             e.stopPropagation();
-            // تشغيل بومودورو لهذه المهمة عبر النظام العام (لا قاعدة بيانات)
-            const event = new CustomEvent('start-pomodoro-task', { detail: { taskId: task.id, title: task.title, context: task.context } });
+            const event = new CustomEvent('start-pomodoro-task', {
+              detail: { taskId: task.id, title: task.title, context: task.context },
+            });
             window.dispatchEvent(event);
           }}
           title="تشغيل بومودورو"
@@ -114,6 +115,7 @@ export default function TaskCard({
             e.stopPropagation();
             onEdit(task.id);
           }}
+          title="تعديل"
         >
           <i className="ph ph-pencil-simple"></i>
         </button>
@@ -124,8 +126,9 @@ export default function TaskCard({
             e.stopPropagation();
             onDelete(task.id);
           }}
+          title="أرشفة المهمة"
         >
-          <i className="ph ph-trash"></i>
+          <i className="ph ph-archive"></i>
         </button>
       </div>
     </div>
