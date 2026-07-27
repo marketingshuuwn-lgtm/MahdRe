@@ -12,13 +12,15 @@ import TrelloView from './components/TrelloView';
 import SettingsView from './components/SettingsView';
 import TaskModal from './components/TaskModal';
 import ViewSwitcher from './components/ViewSwitcher';
+import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import { useTasks } from './hooks/useTasks';
 import { sendNotificationPreview, useLocalNotifications } from './hooks/useLocalNotifications';
 import { useTrello } from './hooks/useTrello';
 import { useToast } from './hooks/useToast';
 import { useWorkDaysSetting } from './hooks/useWorkDaysSetting';
+import { useWorkspaces } from './hooks/useWorkspaces';
 import { exportTasksAsCsv, exportTasksAsXlsx, readImportFile } from './utils/importExport';
-import { DEFAULT_WORK_DAYS, normalizeWorkDays } from './utils/taskMeta';
+import { DEFAULT_WORK_DAYS, normalizeTaskContext, normalizeWorkDays } from './utils/taskMeta';
 
 const THEME_KEY = 'mahd_theme_react_v1';
 const SIDEBAR_KEY = 'mahd_sidebar_compact';
@@ -73,11 +75,18 @@ export default function App() {
     moveTask,
     rescheduleTask,
     reorderInQuadrant,
-    replaceAllTasks,
+    replaceTasksInContext,
     refetch,
   } = useTasks(showToast);
 
   const trello = useTrello(showToast, () => refetch());
+  const {
+    workspaces,
+    activeWorkspaceId,
+    activeWorkspace,
+    setActiveWorkspaceId,
+    addWorkspace,
+  } = useWorkspaces();
 
   const [view, setView] = useState('Matrix');
   const [subview, setSubview] = useState('Board');
@@ -91,6 +100,11 @@ export default function App() {
   const [notificationPermission, setNotificationPermission] = useState(getNotificationPermission);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
+
+  const visibleTasks = useMemo(
+    () => tasks.filter((t) => normalizeTaskContext(t.context) === activeWorkspaceId),
+    [tasks, activeWorkspaceId]
+  );
 
   useEffect(() => {
     if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
@@ -109,9 +123,8 @@ export default function App() {
     );
   }, [notificationSettings]);
 
-  useLocalNotifications(tasks, workDays, notificationSettings);
+  useLocalNotifications(visibleTasks, workDays, notificationSettings);
 
-  // مزامنة تريلو متوقفة مؤقتاً
   useEffect(() => {
     if (!TRELLO_SYNC_ENABLED) return;
     if (trello.isConnected && !trello.loading) {
@@ -125,8 +138,8 @@ export default function App() {
     [tasks, editingTaskId]
   );
 
-  const pendingCount = tasks.filter((t) => !t.completed).length;
-  const trelloCount = tasks.filter((t) => t.externalSource === 'trello' && !t.completed).length;
+  const pendingCount = visibleTasks.filter((t) => !t.completed).length;
+  const trelloCount = visibleTasks.filter((t) => t.externalSource === 'trello' && !t.completed).length;
 
   const openAddModal = () => {
     setEditingTaskId(null);
@@ -142,7 +155,7 @@ export default function App() {
     const extra = {
       recurrence: form.recurrence || null,
       recurrenceDays: form.recurrenceDays || [],
-      context: form.context || 'work',
+      context: form.context || activeWorkspaceId,
       subtasks: form.subtasks || [],
     };
     if (id) {
@@ -151,6 +164,14 @@ export default function App() {
       addTask(form.title, form.quadrant, form.dueDate, form.notes, form.duration, extra);
     }
     closeModal();
+  };
+
+  const handleCreateWorkspace = ({ name, icon, colorIndex }) => {
+    const created = addWorkspace({ name, icon, colorIndex });
+    if (created) {
+      showToast(`أُنشئت مساحة "${created.label}"`, 'ph-folder-plus');
+    }
+    return created;
   };
 
   const requestNotificationPermission = async () => {
@@ -177,8 +198,8 @@ export default function App() {
   };
 
   const handleExport = (format) => {
-    if (format === 'csv') exportTasksAsCsv(tasks);
-    else exportTasksAsXlsx(tasks);
+    if (format === 'csv') exportTasksAsCsv(visibleTasks);
+    else exportTasksAsXlsx(visibleTasks);
   };
 
   const handleImportFile = async (file) => {
@@ -188,11 +209,13 @@ export default function App() {
         showToast('الملف فارغ أو غير صالح', 'ph-warning', 'error');
         return;
       }
+      const spaceLabel = activeWorkspace?.label || activeWorkspaceId;
+      const currentCount = visibleTasks.length;
       const confirmed = window.confirm(
-        `سيتم حذف جميع المهام الحالية (${tasks.length}) واستبدالها بـ ${imported.length} مهمة.\n\nهل أنت متأكد؟`
+        `سيتم استبدال مهام مساحة «${spaceLabel}» فقط (${currentCount} مهمة) بـ ${imported.length} مهمة.\n\nالمساحات الأخرى لن تتأثر.\n\nهل أنت متأكد؟`
       );
       if (!confirmed) return;
-      await replaceAllTasks(imported);
+      await replaceTasksInContext(activeWorkspaceId, imported);
     } catch (err) {
       console.error(err);
       showToast('حدث خطأ أثناء قراءة الملف', 'ph-x-circle', 'error');
@@ -250,7 +273,7 @@ export default function App() {
         onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
         pendingCount={pendingCount}
         trelloCount={trelloCount}
-        totalCount={tasks.length}
+        totalCount={visibleTasks.length}
         connected={connected}
         onExport={handleExport}
         onImportFile={handleImportFile}
@@ -259,6 +282,13 @@ export default function App() {
       />
 
       <main className="main-content">
+        <WorkspaceSwitcher
+          workspaces={workspaces}
+          activeWorkspaceId={activeWorkspaceId}
+          onSwitch={setActiveWorkspaceId}
+          onCreate={handleCreateWorkspace}
+        />
+
         {view === 'Matrix' && (
           <div id="viewMatrix">
             <div className="matrix-topbar">
@@ -267,7 +297,7 @@ export default function App() {
 
             {subview === 'Board' && (
               <QuadrantBoard
-                tasks={tasks}
+                tasks={visibleTasks}
                 onToggleComplete={toggleComplete}
                 onToggleSubtask={toggleSubtask}
                 onEdit={openEditModal}
@@ -279,7 +309,7 @@ export default function App() {
             )}
             {subview === 'Timeline' && (
               <TimelineView
-                tasks={tasks}
+                tasks={visibleTasks}
                 onToggleComplete={toggleComplete}
                 onToggleSubtask={toggleSubtask}
                 onEdit={openEditModal}
@@ -290,7 +320,7 @@ export default function App() {
             )}
             {subview === 'Gantt' && (
               <GanttView
-                tasks={tasks}
+                tasks={visibleTasks}
                 onToggleComplete={toggleComplete}
                 onEdit={openEditModal}
                 onReschedule={rescheduleTask}
@@ -302,7 +332,7 @@ export default function App() {
 
         {view === 'Pending' && (
           <PendingView
-            tasks={tasks}
+            tasks={visibleTasks}
             onToggleComplete={toggleComplete}
             onToggleSubtask={toggleSubtask}
             onEdit={openEditModal}
@@ -313,7 +343,7 @@ export default function App() {
 
         {view === 'Trello' && (
           <TrelloView
-            tasks={tasks}
+            tasks={visibleTasks}
             trello={{
               ...trello,
               syncNow: TRELLO_SYNC_ENABLED
@@ -332,9 +362,9 @@ export default function App() {
           />
         )}
 
-        {view === 'Kpi' && <KpiView tasks={tasks} />}
+        {view === 'Kpi' && <KpiView tasks={visibleTasks} />}
 
-        {view === 'Motivation' && <MotivationView tasks={tasks} />}
+        {view === 'Motivation' && <MotivationView tasks={visibleTasks} />}
 
         {view === 'Settings' && (
           <SettingsView
@@ -351,7 +381,11 @@ export default function App() {
         )}
       </main>
 
-      <FloatingSmartBar onAddTask={addTask} onOpenAdvanced={openAddModal} />
+      <FloatingSmartBar
+        onAddTask={addTask}
+        onOpenAdvanced={openAddModal}
+        activeContext={activeWorkspaceId}
+      />
 
       <TaskModal
         isOpen={modalOpen}
@@ -359,6 +393,8 @@ export default function App() {
         onClose={closeModal}
         onSave={handleSaveTask}
         workDays={workDays}
+        defaultContext={activeWorkspaceId}
+        workspaces={workspaces}
       />
 
       <FloatingTimer />
