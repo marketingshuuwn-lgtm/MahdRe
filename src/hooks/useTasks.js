@@ -13,6 +13,8 @@ function fromRow(row) {
     context: normalizeTaskContext(row.context),
     subtasks: normalizeSubtasks(row.subtasks),
     completed: row.completed,
+    archived: Boolean(row.archived),
+    archivedAt: row.archived_at ?? null,
     notes: row.notes ?? '',
     dueDate: row.due_date ?? '',
     duration: row.duration ?? 1,
@@ -97,6 +99,8 @@ export function useTasks(showToast) {
         context,
         subtasks,
         completed: false,
+        archived: false,
+        archivedAt: null,
         notes: notes || '',
         dueDate: dueDate || '',
         duration: duration || 1,
@@ -123,6 +127,7 @@ export function useTasks(showToast) {
         sort_order: 0,
         recurrence,
         recurrence_days: recurrence === 'weekly' ? recurrenceDays : null,
+        archived: false,
       };
 
       const { data, error } = await supabase.from(TABLE).insert(payload).select().single();
@@ -200,23 +205,59 @@ export function useTasks(showToast) {
     [tasks, showToast]
   );
 
-  const deleteTask = useCallback(
+  /** أرشفة — لا حذف من قاعدة البيانات */
+  const archiveTask = useCallback(
     async (id) => {
       const task = tasks.find((t) => t.id === id);
-      if (!task) return;
+      if (!task || task.archived) return;
 
-      setTasks((prev) => prev.filter((t) => t.id !== id));
+      const archivedAt = new Date().toISOString();
+      setTasks((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, archived: true, archivedAt } : t))
+      );
 
-      const { error } = await supabase.from(TABLE).delete().eq('id', id);
+      const { error } = await supabase
+        .from(TABLE)
+        .update({ archived: true, archived_at: archivedAt })
+        .eq('id', id);
 
       if (error) {
         console.error(error);
-        setTasks((prev) => [task, ...prev]);
-        showToast?.('تعذّر حذف المهمة', 'ph-x-circle', 'error');
+        setTasks((prev) => prev.map((t) => (t.id === id ? task : t)));
+        showToast?.('تعذّرت أرشفة المهمة', 'ph-x-circle', 'error');
         return;
       }
 
-      showToast?.(`تم حذف "${task.title}"`, 'ph-trash');
+      showToast?.(`أُرشفت "${task.title}"`, 'ph-archive');
+    },
+    [tasks, showToast]
+  );
+
+  /** توافق مع المكوّنات التي ما زالت تستدعي onDelete */
+  const deleteTask = archiveTask;
+
+  const restoreTask = useCallback(
+    async (id) => {
+      const task = tasks.find((t) => t.id === id);
+      if (!task || !task.archived) return;
+
+      setTasks((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, archived: false, archivedAt: null } : t))
+      );
+
+      const { error } = await supabase
+        .from(TABLE)
+        .update({ archived: false, archived_at: null })
+        .eq('id', id);
+
+      if (error) {
+        console.error(error);
+        setTasks((prev) => prev.map((t) => (t.id === id ? task : t)));
+        showToast?.('تعذّر استرجاع المهمة', 'ph-x-circle', 'error');
+        return;
+      }
+
+      showToast?.(`استُرجعت "${task.title}"`, 'ph-arrow-counter-clockwise');
     },
     [tasks, showToast]
   );
@@ -356,57 +397,34 @@ export function useTasks(showToast) {
     );
   }, []);
 
-  const replaceAllTasks = useCallback(
-    async (importedTasks) => {
-      const { error: deleteError } = await supabase.from(TABLE).delete().not('id', 'is', null);
-      if (deleteError) {
-        console.error(deleteError);
-        showToast?.('حدث خطأ أثناء استبدال المهام', 'ph-x-circle', 'error');
-        return;
-      }
-
-      const rows = importedTasks.map((t, i) => ({
-        title: t.title,
-        quadrant: t.quadrant,
-        context: normalizeTaskContext(t.context),
-        subtasks: normalizeSubtasks(t.subtasks),
-        completed: t.completed,
-        notes: t.notes || '',
-        due_date: t.dueDate || null,
-        duration: t.duration || 1,
-        sort_order: i,
-        recurrence: t.recurrence || null,
-        recurrence_days: t.recurrence === 'weekly' ? t.recurrenceDays || [] : null,
-        completed_at: t.completed ? new Date().toISOString() : null,
-      }));
-
-      const { data, error: insertError } = await supabase.from(TABLE).insert(rows).select();
-      if (insertError) {
-        console.error(insertError);
-        showToast?.('حدث خطأ أثناء استيراد المهام', 'ph-x-circle', 'error');
-        return;
-      }
-
-      setTasks((data ?? []).map(fromRow));
-      showToast?.(`تم استيراد ${rows.length} مهمة بنجاح`, 'ph-upload-simple');
-    },
-    [showToast]
-  );
-
   /**
-   * يستبدل مهام مساحة واحدة فقط — لا يمس باقي المساحات.
-   * ملاحظة: لا يزال يستخدم delete على مستوى المساحة حتى تُفعَّل الأرشفة لاحقاً.
+   * يستبدل مهام مساحة واحدة: يؤرشف النشطة ثم يُدخل المستورد.
+   * لا حذف من قاعدة البيانات.
    */
   const replaceTasksInContext = useCallback(
     async (context, importedTasks) => {
       const ctx = normalizeTaskContext(context);
+      const archivedAt = new Date().toISOString();
 
-      const { error: deleteError } = await supabase.from(TABLE).delete().eq('context', ctx);
-      if (deleteError) {
-        console.error(deleteError);
-        showToast?.('حدث خطأ أثناء استبدال مهام المساحة', 'ph-x-circle', 'error');
+      const { error: archiveError } = await supabase
+        .from(TABLE)
+        .update({ archived: true, archived_at: archivedAt })
+        .eq('context', ctx)
+        .eq('archived', false);
+
+      if (archiveError) {
+        console.error(archiveError);
+        showToast?.('حدث خطأ أثناء أرشفة مهام المساحة', 'ph-x-circle', 'error');
         return;
       }
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          normalizeTaskContext(t.context) === ctx && !t.archived
+            ? { ...t, archived: true, archivedAt }
+            : t
+        )
+      );
 
       const rows = importedTasks.map((t, i) => ({
         title: t.title,
@@ -421,11 +439,11 @@ export function useTasks(showToast) {
         recurrence: t.recurrence || null,
         recurrence_days: t.recurrence === 'weekly' ? t.recurrenceDays || [] : null,
         completed_at: t.completed ? new Date().toISOString() : null,
+        archived: false,
       }));
 
       if (rows.length === 0) {
-        setTasks((prev) => prev.filter((t) => normalizeTaskContext(t.context) !== ctx));
-        showToast?.('تم تفريغ مهام المساحة الحالية', 'ph-upload-simple');
+        showToast?.('أُرشفت مهام المساحة الحالية', 'ph-archive');
         return;
       }
 
@@ -438,11 +456,8 @@ export function useTasks(showToast) {
       }
 
       const inserted = (data ?? []).map(fromRow);
-      setTasks((prev) => [
-        ...prev.filter((t) => normalizeTaskContext(t.context) !== ctx),
-        ...inserted,
-      ]);
-      showToast?.(`تم استيراد ${rows.length} مهمة في المساحة الحالية`, 'ph-upload-simple');
+      setTasks((prev) => [...inserted, ...prev]);
+      showToast?.(`تم استيراد ${rows.length} مهمة (السابقة أُرشفت)`, 'ph-upload-simple');
     },
     [showToast, fetchTasks]
   );
@@ -454,12 +469,13 @@ export function useTasks(showToast) {
     addTask,
     updateTask,
     deleteTask,
+    archiveTask,
+    restoreTask,
     toggleComplete,
     toggleSubtask,
     moveTask,
     rescheduleTask,
     reorderInQuadrant,
-    replaceAllTasks,
     replaceTasksInContext,
     refetch: () => fetchTasks(false),
   };
