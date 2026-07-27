@@ -3,19 +3,24 @@ import { usePomodoro } from '../hooks/usePomodoro';
 import { notify } from '../hooks/useLocalNotifications';
 
 export default function FloatingTimer() {
-  const { running, mode, remaining, start, toggle, reset } = usePomodoro();
+  const { running, mode, remaining, taskTitle, start, toggle, reset } = usePomodoro();
 
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;
-
   const label = mode === 'work' ? 'تركيز' : 'راحة';
 
   useEffect(() => {
     const handle = (e) => {
-      const { title, context } = e.detail || {};
-      // نبدأ بومودورو العمل (25 دقيقة) ولا نضيف قاعدة بيانات
-      start();
-      notify('بومودورو — مهد', `بدأت جلسة تركيز لمهمة: ${title || 'مهمة'} (المساحة: ${context || 'عام'})`);
+      const { taskId, title, context } = e.detail || {};
+      start({
+        taskId: taskId ?? null,
+        taskTitle: title || null,
+        context: context || 'work',
+      });
+      notify(
+        'بومودورو — مهد',
+        `بدأت جلسة تركيز${title ? `: ${title}` : ''}`
+      );
     };
     window.addEventListener('start-pomodoro-task', handle);
     return () => window.removeEventListener('start-pomodoro-task', handle);
@@ -37,16 +42,32 @@ export default function FloatingTimer() {
         alignItems: 'center',
         gap: 14,
         minWidth: 180,
+        maxWidth: 280,
         direction: 'rtl',
       }}
     >
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
           {label} — بومودورو
         </div>
         <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>
           {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
         </div>
+        {taskTitle && (
+          <div
+            style={{
+              fontSize: 11,
+              color: 'var(--text-secondary)',
+              marginTop: 4,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={taskTitle}
+          >
+            {taskTitle}
+          </div>
+        )}
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
         <button
