@@ -21,7 +21,12 @@ import { useToast } from './hooks/useToast';
 import { useWorkDaysSetting } from './hooks/useWorkDaysSetting';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { exportTasksAsCsv, exportTasksAsXlsx, readImportFile } from './utils/importExport';
-import { DEFAULT_WORK_DAYS, normalizeTaskContext, normalizeWorkDays } from './utils/taskMeta';
+import {
+  ALL_WORKSPACES_ID,
+  DEFAULT_WORK_DAYS,
+  normalizeTaskContext,
+  normalizeWorkDays,
+} from './utils/taskMeta';
 
 const THEME_KEY = 'mahd_theme_react_v1';
 const SIDEBAR_KEY = 'mahd_sidebar_compact';
@@ -70,6 +75,7 @@ export default function App() {
     addTask,
     updateTask,
     archiveTask,
+    archiveTasksInContext,
     restoreTask,
     toggleComplete,
     toggleSubtask,
@@ -82,11 +88,15 @@ export default function App() {
 
   const trello = useTrello(showToast, () => refetch());
   const {
-    workspaces,
+    visibleWorkspaces,
     activeWorkspaceId,
     activeWorkspace,
+    isAllMode,
+    writeContextId,
     setActiveWorkspaceId,
     addWorkspace,
+    updateWorkspace,
+    archiveWorkspace,
   } = useWorkspaces();
 
   const [view, setView] = useState('Matrix');
@@ -102,10 +112,10 @@ export default function App() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
 
-  const spaceTasks = useMemo(
-    () => tasks.filter((t) => normalizeTaskContext(t.context) === activeWorkspaceId),
-    [tasks, activeWorkspaceId]
-  );
+  const spaceTasks = useMemo(() => {
+    if (isAllMode) return tasks;
+    return tasks.filter((t) => normalizeTaskContext(t.context) === activeWorkspaceId);
+  }, [tasks, activeWorkspaceId, isAllMode]);
 
   const visibleTasks = useMemo(
     () => spaceTasks.filter((t) => !t.archived),
@@ -167,7 +177,7 @@ export default function App() {
     const extra = {
       recurrence: form.recurrence || null,
       recurrenceDays: form.recurrenceDays || [],
-      context: form.context || activeWorkspaceId,
+      context: form.context || writeContextId,
       subtasks: form.subtasks || [],
     };
     if (id) {
@@ -184,6 +194,20 @@ export default function App() {
       showToast(`أُنشئت مساحة "${created.label}"`, 'ph-folder-plus');
     }
     return created;
+  };
+
+  const handleUpdateWorkspace = (id, patch) => {
+    updateWorkspace(id, patch);
+    showToast('تم تحديث المساحة', 'ph-pencil-simple');
+  };
+
+  const handleArchiveSpace = async (id) => {
+    const okTasks = await archiveTasksInContext(id);
+    if (!okTasks) return;
+    const okSpace = archiveWorkspace(id);
+    if (okSpace) {
+      showToast('أُرشفت المساحة ومهامها النشطة', 'ph-archive');
+    }
   };
 
   const requestNotificationPermission = async () => {
@@ -215,6 +239,10 @@ export default function App() {
   };
 
   const handleImportFile = async (file) => {
+    if (isAllMode || activeWorkspaceId === ALL_WORKSPACES_ID) {
+      showToast('اختر مساحة محددة للاستيراد', 'ph-warning', 'error');
+      return;
+    }
     try {
       const imported = await readImportFile(file);
       if (imported.length === 0) {
@@ -296,10 +324,13 @@ export default function App() {
 
       <main className="main-content">
         <WorkspaceSwitcher
-          workspaces={workspaces}
+          workspaces={visibleWorkspaces}
           activeWorkspaceId={activeWorkspaceId}
           onSwitch={setActiveWorkspaceId}
           onCreate={handleCreateWorkspace}
+          onUpdate={handleUpdateWorkspace}
+          onArchiveSpace={handleArchiveSpace}
+          isAllMode={isAllMode}
         />
 
         {view === 'Matrix' && (
@@ -385,7 +416,7 @@ export default function App() {
             onRestore={restoreTask}
             onEdit={openEditModal}
             workDays={workDays}
-            workspaceLabel={activeWorkspace?.label || activeWorkspaceId}
+            workspaceLabel={isAllMode ? 'كل المساحات' : activeWorkspace?.label || activeWorkspaceId}
           />
         )}
 
@@ -407,7 +438,7 @@ export default function App() {
       <FloatingSmartBar
         onAddTask={addTask}
         onOpenAdvanced={openAddModal}
-        activeContext={activeWorkspaceId}
+        activeContext={writeContextId}
       />
 
       <TaskModal
@@ -416,8 +447,8 @@ export default function App() {
         onClose={closeModal}
         onSave={handleSaveTask}
         workDays={workDays}
-        defaultContext={activeWorkspaceId}
-        workspaces={workspaces}
+        defaultContext={writeContextId}
+        workspaces={visibleWorkspaces}
       />
 
       <FloatingTimer />
