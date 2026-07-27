@@ -10,6 +10,7 @@ import MotivationView from './components/MotivationView';
 import FloatingTimer from './components/FloatingTimer';
 import TrelloView from './components/TrelloView';
 import SettingsView from './components/SettingsView';
+import ArchiveView from './components/ArchiveView';
 import TaskModal from './components/TaskModal';
 import ViewSwitcher from './components/ViewSwitcher';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
@@ -58,7 +59,6 @@ function getNotificationPermission() {
   return Notification.permission;
 }
 
-/** إيقاف مؤقت لمزامنة تريلو التلقائية — الكود والواجهة يبقيان */
 const TRELLO_SYNC_ENABLED = false;
 
 export default function App() {
@@ -69,7 +69,8 @@ export default function App() {
     connected,
     addTask,
     updateTask,
-    deleteTask,
+    archiveTask,
+    restoreTask,
     toggleComplete,
     toggleSubtask,
     moveTask,
@@ -101,9 +102,19 @@ export default function App() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
 
-  const visibleTasks = useMemo(
+  const spaceTasks = useMemo(
     () => tasks.filter((t) => normalizeTaskContext(t.context) === activeWorkspaceId),
     [tasks, activeWorkspaceId]
+  );
+
+  const visibleTasks = useMemo(
+    () => spaceTasks.filter((t) => !t.archived),
+    [spaceTasks]
+  );
+
+  const archivedTasks = useMemo(
+    () => spaceTasks.filter((t) => t.archived),
+    [spaceTasks]
   );
 
   useEffect(() => {
@@ -140,6 +151,7 @@ export default function App() {
 
   const pendingCount = visibleTasks.filter((t) => !t.completed).length;
   const trelloCount = visibleTasks.filter((t) => t.externalSource === 'trello' && !t.completed).length;
+  const archiveCount = archivedTasks.length;
 
   const openAddModal = () => {
     setEditingTaskId(null);
@@ -212,7 +224,7 @@ export default function App() {
       const spaceLabel = activeWorkspace?.label || activeWorkspaceId;
       const currentCount = visibleTasks.length;
       const confirmed = window.confirm(
-        `سيتم استبدال مهام مساحة «${spaceLabel}» فقط (${currentCount} مهمة) بـ ${imported.length} مهمة.\n\nالمساحات الأخرى لن تتأثر.\n\nهل أنت متأكد؟`
+        `سيتم أرشفة مهام مساحة «${spaceLabel}» النشطة (${currentCount}) وإضافة ${imported.length} مهمة جديدة.\n\nلا يُحذف شيء من قاعدة البيانات.\n\nهل أنت متأكد؟`
       );
       if (!confirmed) return;
       await replaceTasksInContext(activeWorkspaceId, imported);
@@ -273,6 +285,7 @@ export default function App() {
         onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
         pendingCount={pendingCount}
         trelloCount={trelloCount}
+        archiveCount={archiveCount}
         totalCount={visibleTasks.length}
         connected={connected}
         onExport={handleExport}
@@ -301,7 +314,7 @@ export default function App() {
                 onToggleComplete={toggleComplete}
                 onToggleSubtask={toggleSubtask}
                 onEdit={openEditModal}
-                onDelete={deleteTask}
+                onDelete={archiveTask}
                 onMoveTask={moveTask}
                 onReorderInQuadrant={reorderInQuadrant}
                 workDays={workDays}
@@ -313,7 +326,7 @@ export default function App() {
                 onToggleComplete={toggleComplete}
                 onToggleSubtask={toggleSubtask}
                 onEdit={openEditModal}
-                onDelete={deleteTask}
+                onDelete={archiveTask}
                 onReschedule={rescheduleTask}
                 workDays={workDays}
               />
@@ -336,7 +349,7 @@ export default function App() {
             onToggleComplete={toggleComplete}
             onToggleSubtask={toggleSubtask}
             onEdit={openEditModal}
-            onDelete={deleteTask}
+            onDelete={archiveTask}
             workDays={workDays}
           />
         )}
@@ -356,7 +369,7 @@ export default function App() {
             onToggleComplete={toggleComplete}
             onToggleSubtask={toggleSubtask}
             onEdit={openEditModal}
-            onDelete={deleteTask}
+            onDelete={archiveTask}
             onMoveTask={moveTask}
             workDays={workDays}
           />
@@ -365,6 +378,16 @@ export default function App() {
         {view === 'Kpi' && <KpiView tasks={visibleTasks} />}
 
         {view === 'Motivation' && <MotivationView tasks={visibleTasks} />}
+
+        {view === 'Archive' && (
+          <ArchiveView
+            tasks={archivedTasks}
+            onRestore={restoreTask}
+            onEdit={openEditModal}
+            workDays={workDays}
+            workspaceLabel={activeWorkspace?.label || activeWorkspaceId}
+          />
+        )}
 
         {view === 'Settings' && (
           <SettingsView
