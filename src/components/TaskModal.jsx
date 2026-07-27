@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { createSubtask, normalizeSubtasks } from '../utils/subtasks';
-import { TASK_CONTEXTS, WEEK_DAYS, formatWorkDays, normalizeTaskContext } from '../utils/taskMeta';
+import {
+  DEFAULT_WORKSPACES,
+  WEEK_DAYS,
+  formatWorkDays,
+  normalizeTaskContext,
+} from '../utils/taskMeta';
 
 const EMPTY_FORM = {
   title: '',
@@ -14,7 +19,15 @@ const EMPTY_FORM = {
   recurrenceDays: [],
 };
 
-export default function TaskModal({ isOpen, task, onClose, onSave, workDays }) {
+export default function TaskModal({
+  isOpen,
+  task,
+  onClose,
+  onSave,
+  workDays,
+  defaultContext = 'work',
+  workspaces = DEFAULT_WORKSPACES,
+}) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
@@ -32,10 +45,10 @@ export default function TaskModal({ isOpen, task, onClose, onSave, workDays }) {
         recurrenceDays: task.recurrenceDays || [],
       });
     } else {
-      setForm(EMPTY_FORM);
+      setForm({ ...EMPTY_FORM, context: normalizeTaskContext(defaultContext) });
     }
     setNewSubtaskTitle('');
-  }, [task, isOpen]);
+  }, [task, isOpen, defaultContext]);
 
   if (!isOpen) return null;
 
@@ -98,6 +111,7 @@ export default function TaskModal({ isOpen, task, onClose, onSave, workDays }) {
   };
 
   const isRecurring = form.recurrence === 'daily' || form.recurrence === 'weekly';
+  const spaceOptions = workspaces?.length ? workspaces : DEFAULT_WORKSPACES;
 
   return (
     <div
@@ -146,7 +160,7 @@ export default function TaskModal({ isOpen, task, onClose, onSave, workDays }) {
                 value={form.context}
                 onChange={(e) => setForm({ ...form, context: e.target.value })}
               >
-                {TASK_CONTEXTS.map((ctx) => (
+                {spaceOptions.map((ctx) => (
                   <option key={ctx.id} value={ctx.id}>
                     {ctx.label}
                   </option>
@@ -263,7 +277,7 @@ export default function TaskModal({ isOpen, task, onClose, onSave, workDays }) {
                       type="button"
                       className="btn-icon danger"
                       onClick={() => removeSubtask(item.id)}
-                      title="حذف"
+                      title="إزالة من القائمة"
                     >
                       <i className="ph ph-trash"></i>
                     </button>
