@@ -11,6 +11,9 @@ export const WEEK_DAYS = [
 export const DEFAULT_WORK_DAYS = [0, 1, 2, 3, 4];
 export const ALL_WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
+/** وضع عرض كل المساحات (ليس context في قاعدة البيانات) */
+export const ALL_WORKSPACES_ID = '__all__';
+
 /** المساحات الافتراضية — يمكن للمستخدم إضافة مساحات أخرى محلياً */
 export const DEFAULT_WORKSPACES = [
   {
