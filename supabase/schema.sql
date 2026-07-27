@@ -10,8 +10,7 @@ create table if not exists public.tasks (
                  'not-important-urgent',
                  'not-important-not-urgent'
                )),
-  context      text not null default 'work'
-               check (context in ('work', 'personal')),
+  context      text not null default 'work',
   subtasks     jsonb not null default '[]'::jsonb,
   completed    boolean not null default false,
   notes        text default '',
@@ -32,8 +31,8 @@ create table if not exists public.tasks (
 -- ترحيل
 alter table public.tasks add column if not exists context text not null default 'work';
 alter table public.tasks add column if not exists subtasks jsonb not null default '[]'::jsonb;
+-- إزالة قيد work/personal للسماح بمساحات مخصصة
 alter table public.tasks drop constraint if exists tasks_context_check;
-alter table public.tasks add constraint tasks_context_check check (context in ('work', 'personal'));
 alter table public.tasks add column if not exists sort_order integer not null default 0;
 alter table public.tasks add column if not exists recurrence text default null;
 alter table public.tasks add column if not exists recurrence_days integer[] default null;
@@ -42,6 +41,9 @@ alter table public.tasks add column if not exists external_id text default null;
 alter table public.tasks add column if not exists external_url text default null;
 alter table public.tasks add column if not exists external_meta jsonb default null;
 alter table public.tasks add column if not exists last_synced_at timestamptz;
+
+-- ترحيل: أي سياق فارغ أو غير معروف → work
+update public.tasks set context = 'work' where context is null or btrim(context) = '';
 
 create unique index if not exists tasks_external_unique
   on public.tasks (external_source, external_id)
