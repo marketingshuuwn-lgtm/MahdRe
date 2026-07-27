@@ -205,7 +205,6 @@ export function useTasks(showToast) {
     [tasks, showToast]
   );
 
-  /** أرشفة — لا حذف من قاعدة البيانات */
   const archiveTask = useCallback(
     async (id) => {
       const task = tasks.find((t) => t.id === id);
@@ -233,8 +232,37 @@ export function useTasks(showToast) {
     [tasks, showToast]
   );
 
-  /** توافق مع المكوّنات التي ما زالت تستدعي onDelete */
   const deleteTask = archiveTask;
+
+  /** أرشفة كل المهام النشطة في مساحة معينة */
+  const archiveTasksInContext = useCallback(
+    async (context) => {
+      const ctx = normalizeTaskContext(context);
+      const archivedAt = new Date().toISOString();
+
+      const { error } = await supabase
+        .from(TABLE)
+        .update({ archived: true, archived_at: archivedAt })
+        .eq('context', ctx)
+        .eq('archived', false);
+
+      if (error) {
+        console.error(error);
+        showToast?.('تعذّرت أرشفة مهام المساحة', 'ph-x-circle', 'error');
+        return false;
+      }
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          normalizeTaskContext(t.context) === ctx && !t.archived
+            ? { ...t, archived: true, archivedAt }
+            : t
+        )
+      );
+      return true;
+    },
+    [showToast]
+  );
 
   const restoreTask = useCallback(
     async (id) => {
@@ -397,10 +425,6 @@ export function useTasks(showToast) {
     );
   }, []);
 
-  /**
-   * يستبدل مهام مساحة واحدة: يؤرشف النشطة ثم يُدخل المستورد.
-   * لا حذف من قاعدة البيانات.
-   */
   const replaceTasksInContext = useCallback(
     async (context, importedTasks) => {
       const ctx = normalizeTaskContext(context);
@@ -470,6 +494,7 @@ export function useTasks(showToast) {
     updateTask,
     deleteTask,
     archiveTask,
+    archiveTasksInContext,
     restoreTask,
     toggleComplete,
     toggleSubtask,
