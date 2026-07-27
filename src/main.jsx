@@ -5,6 +5,7 @@ import { ToastProvider } from './hooks/useToast.jsx';
 import './index.css';
 import './styles/trello.css';
 import './styles/workspaces.css';
+import './styles/archive.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
