@@ -1,9 +1,7 @@
 /**
  * نظام بصري موحّد لمهد — بدون قيد أبعاد ثابتة
- * يُحمَّل آخراً لضبط التخطيط، الأزرار، الشريط، والتنقل
  */
 
-/* ─── Design tokens ─── */
 :root {
   --sidebar-w: 252px;
   --sidebar-compact-w: 76px;
@@ -27,7 +25,6 @@
   --ease: 0.18s ease;
 }
 
-/* ─── Base ─── */
 html {
   scroll-behavior: smooth;
 }
@@ -58,7 +55,16 @@ button:focus-visible,
   box-shadow: var(--focus-ring);
 }
 
-/* ─── App shell ─── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  button,
+  .nav-item {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* App shell */
 .app-container {
   display: flex;
   min-height: 100vh;
@@ -66,6 +72,7 @@ button:focus-visible,
   width: 100%;
   max-width: none;
   margin: 0;
+  position: relative;
 }
 
 .main-content {
@@ -76,7 +83,24 @@ button:focus-visible,
   padding: var(--page-pad-y) var(--page-pad-x) var(--page-pad-bottom);
 }
 
-/* ─── Sidebar ─── */
+/* Mobile sidebar scrim */
+.sidebar-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(2px);
+  z-index: 25;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.sidebar-scrim.visible {
+  display: block;
+}
+
+/* Sidebar */
 .sidebar {
   width: var(--sidebar-w);
   padding: var(--space-5) var(--space-3);
@@ -179,7 +203,7 @@ button:focus-visible,
   font-size: var(--fs-xs);
 }
 
-/* ─── Buttons unified ─── */
+/* Buttons */
 .btn-primary,
 .btn-secondary {
   min-height: var(--control-h);
@@ -212,9 +236,12 @@ button:focus-visible,
   align-items: flex-start;
   gap: 2px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  max-width: 120px;
+  justify-content: flex-end;
 }
 
-/* ─── Cards & page ─── */
+/* Cards & page */
 .card {
   border-radius: var(--radius-lg);
   padding: var(--space-5);
@@ -235,7 +262,7 @@ button:focus-visible,
   margin-top: var(--space-1);
 }
 
-/* ─── Matrix / views ─── */
+/* Matrix */
 .matrix-topbar {
   margin-bottom: var(--space-4);
 }
@@ -277,6 +304,15 @@ button:focus-visible,
   align-items: flex-start;
 }
 
+.task-item:hover {
+  box-shadow: var(--shadow-soft);
+}
+
+.task-item.overdue {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border-color));
+  background: color-mix(in srgb, var(--danger-light) 55%, var(--bg-color));
+}
+
 .task-title {
   font-size: var(--fs-sm);
   font-weight: var(--fw-bold);
@@ -284,7 +320,27 @@ button:focus-visible,
   line-height: 1.35;
 }
 
-/* ─── Workspace strip ─── */
+.task-deadline {
+  margin-top: 4px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.task-deadline.is-overdue {
+  color: var(--danger);
+  background: var(--danger-light);
+}
+
+.overdue-tag {
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+  color: #fff;
+}
+
+/* Workspace */
 .workspace-switcher {
   margin-bottom: var(--space-4);
 }
@@ -304,7 +360,7 @@ button:focus-visible,
   font-size: 15px;
 }
 
-/* ─── Floating bars — avoid overlap ─── */
+/* Floating */
 .floating-smart-bar {
   bottom: 16px;
   width: min(620px, calc(100vw - 28px));
@@ -357,7 +413,7 @@ button:focus-visible,
   flex-shrink: 0;
 }
 
-/* ─── Forms ─── */
+/* Forms */
 .form-input {
   min-height: var(--control-h);
   padding: 10px 14px;
@@ -376,7 +432,7 @@ button:focus-visible,
   border-radius: var(--radius-pill);
 }
 
-/* ─── Modal ─── */
+/* Modal */
 .modal-box {
   border-radius: var(--radius-xl);
   padding: var(--space-5);
@@ -387,22 +443,58 @@ button:focus-visible,
   margin-top: var(--space-5);
 }
 
-/* ─── Responsive ─── */
+/* Empty / loading */
+.empty-state {
+  padding: var(--space-8) var(--space-4);
+}
+
+.loading-spinner {
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: mahd-spin 0.75s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes mahd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive */
 @media (max-width: 1100px) {
   .matrix-grid {
     grid-template-columns: 1fr;
+  }
+
+  .task-actions {
+    max-width: none;
   }
 }
 
 @media (max-width: 900px) {
   .sidebar {
     width: min(300px, 88vw) !important;
+    z-index: 30;
   }
+
   .main-content {
     padding: 14px 12px 100px;
   }
+
   .floating-timer-panel {
     bottom: 76px;
     left: 12px;
+  }
+
+  .floating-smart-bar {
+    width: calc(100vw - 20px);
+  }
+
+  .task-context-badge span {
+    display: none;
   }
 }
