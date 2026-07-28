@@ -113,6 +113,7 @@ export default function App() {
   const [notificationPermission, setNotificationPermission] = useState(getNotificationPermission);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
+  const [draftSeed, setDraftSeed] = useState(null);
 
   const spaceTasks = useMemo(() => {
     if (isAllMode) return tasks;
@@ -166,15 +167,20 @@ export default function App() {
   const trelloCount = visibleTasks.filter((t) => t.externalSource === 'trello' && !t.completed).length;
   const archiveCount = archivedTasks.length;
 
-  const openAddModal = () => {
+  const openAddModal = (seed = null) => {
     setEditingTaskId(null);
+    setDraftSeed(seed && typeof seed === 'object' ? seed : null);
     setModalOpen(true);
   };
   const openEditModal = (id) => {
     setEditingTaskId(id);
+    setDraftSeed(null);
     setModalOpen(true);
   };
-  const closeModal = () => setModalOpen(false);
+  const closeModal = () => {
+    setModalOpen(false);
+    setDraftSeed(null);
+  };
 
   const handleSaveTask = (form, id) => {
     const extra = {
@@ -292,7 +298,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app-container ${sidebarCompact ? 'sidebar-is-compact' : ''}`}>
+    <div className={`app-container ${sidebarCompact ? 'sidebar-is-compact' : ''`}>
       <div className="mobile-header">
         <div className="logo-area" style={{ marginBottom: 0 }}>
           <div className="logo-icon" style={{ width: 36, height: 36 }}>
@@ -455,6 +461,7 @@ export default function App() {
       <TaskModal
         isOpen={modalOpen}
         task={editingTask}
+        draftSeed={draftSeed}
         onClose={closeModal}
         onSave={handleSaveTask}
         workDays={workDays}
