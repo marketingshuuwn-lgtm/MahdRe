@@ -270,7 +270,6 @@ export default function App() {
       <div className="full-center">
         <div className="loading-spinner" />
         <p style={{ color: 'var(--text-secondary)' }}>جاري تحميل المهام…</p>
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}} .loading-spinner{width:48px;height:48px;border:4px solid var(--border-color);border-top-color:var(--accent);border-radius:50%;animation:spin .75s linear infinite;margin:0 auto 16px}`}</style>
       </div>
     );
   }
@@ -302,10 +301,22 @@ export default function App() {
             مهد
           </div>
         </div>
-        <button type="button" className="btn-icon" onClick={() => setSidebarOpen(true)}>
+        <button
+          type="button"
+          className="btn-icon"
+          aria-label="فتح القائمة"
+          onClick={() => setSidebarOpen(true)}
+        >
           <i className="ph ph-list" style={{ fontSize: 24 }}></i>
         </button>
       </div>
+
+      <button
+        type="button"
+        className={`sidebar-scrim ${sidebarOpen ? 'visible' : ''}`}
+        aria-label="إغلاق القائمة"
+        onClick={() => setSidebarOpen(false)}
+      />
 
       <Sidebar
         view={view}
