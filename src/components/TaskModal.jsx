@@ -21,6 +21,17 @@ const EMPTY_FORM = {
   recurrenceDays: [],
 };
 
+function normalizeDraftSeed(seed) {
+  if (!seed || typeof seed !== 'object') return null;
+  // تجاهل أحداث React إن وصلت بالخطأ
+  if (typeof seed.preventDefault === 'function' || seed.nativeEvent) return null;
+  return {
+    title: typeof seed.title === 'string' ? seed.title.trim() : '',
+    dueDate: typeof seed.dueDate === 'string' ? seed.dueDate : '',
+    quadrant: typeof seed.quadrant === 'string' ? seed.quadrant : 'important-urgent',
+  };
+}
+
 export default function TaskModal({
   isOpen,
   task,
@@ -33,6 +44,9 @@ export default function TaskModal({
 }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+
+  const seed = normalizeDraftSeed(draftSeed);
+  const seedKey = seed ? `${seed.title}|${seed.dueDate}|${seed.quadrant}` : '';
 
   useEffect(() => {
     if (!isOpen) return;
@@ -53,13 +67,14 @@ export default function TaskModal({
       setForm({
         ...EMPTY_FORM,
         context: normalizeTaskContext(defaultContext),
-        title: (draftSeed?.title || '').trim(),
-        dueDate: draftSeed?.dueDate || '',
-        quadrant: draftSeed?.quadrant || 'important-urgent',
+        title: seed?.title || '',
+        dueDate: seed?.dueDate || '',
+        quadrant: seed?.quadrant || 'important-urgent',
       });
     }
     setNewSubtaskTitle('');
-  }, [task, isOpen, defaultContext, draftSeed]);
+    // seedKey يثبّت الاعتماد بدل كائن draftSeed
+  }, [task, isOpen, defaultContext, seedKey]);
 
   if (!isOpen) return null;
 
@@ -126,7 +141,6 @@ export default function TaskModal({
 
   return (
     <div className="modal-overlay open" role="presentation">
-      {/* لا يُغلق بالضغط على الخلفية — فقط حفظ / إلغاء / X */}
       <div
         className="modal-box card"
         role="dialog"
@@ -261,8 +275,7 @@ export default function TaskModal({
               </p>
               {isRecurring && Number(form.duration) <= 1 && (
                 <p className="form-hint" style={{ color: 'var(--danger)', fontWeight: 700 }}>
-                  ⚠️ بهذي القيمة (يوم واحد) المهمة راح تظهر مرة وحدة بس ولن تتكرر فعلياً — ارفع
-                  الرقم (مثلاً 365) حتى يشتغل التكرار.
+                  تنبيه: بقيمة يوم واحد لن يتكرر فعلياً — ارفع الرقم (مثلاً 365).
                 </p>
               )}
             </div>
