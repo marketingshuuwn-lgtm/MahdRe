@@ -22,6 +22,18 @@ export default function FloatingSmartBar({ onAddTask, onOpenAdvanced, activeCont
     setValue('');
   };
 
+  const openAdvanced = () => {
+    const text = value.trim();
+    const parsed = text ? parseSmartInput(text) : { title: '', dueDate: '' };
+    onOpenAdvanced?.({
+      title: (parsed.title || text || '').trim(),
+      dueDate: parsed.dueDate || '',
+      quadrant,
+    });
+    // نفرّغ الشريط حتى لا تُضاف المهمة مرتين بالخطأ
+    setValue('');
+  };
+
   if (minimized) {
     return (
       <div className="floating-smart-bar floating-minimized">
@@ -75,7 +87,7 @@ export default function FloatingSmartBar({ onAddTask, onOpenAdvanced, activeCont
           />
         </div>
 
-        <button type="button" className="floating-icon-btn" onClick={onOpenAdvanced} title="إعدادات متقدمة">
+        <button type="button" className="floating-icon-btn" onClick={openAdvanced} title="إعدادات متقدمة">
           <i className="ph ph-sliders-horizontal"></i>
         </button>
 
