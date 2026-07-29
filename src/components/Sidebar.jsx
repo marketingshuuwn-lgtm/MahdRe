@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 
 const NAV_ITEMS = [
+  { id: 'Today', label: 'اليوم', icon: 'ph-sun' },
   { id: 'Matrix', label: 'مصفوفة الأولويات', icon: 'ph-squares-four' },
   { id: 'Pending', label: 'المهام المعلقة', icon: 'ph-hourglass' },
   { id: 'Trello', label: 'تريلو', icon: 'ph-kanban' },
