@@ -306,7 +306,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app-container ${sidebarCompact ? 'sidebar-is-compact' : ''`}>
+    <div className={`app-container ${sidebarCompact ? 'sidebar-is-compact' : ''}`}>
       <div className="mobile-header">
         <div className="logo-area" style={{ marginBottom: 0 }}>
           <div className="logo-icon" style={{ width: 36, height: 36 }}>
