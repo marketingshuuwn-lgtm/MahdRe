@@ -6,6 +6,7 @@ import './index.css';
 import './styles/trello.css';
 import './styles/workspaces.css';
 import './styles/archive.css';
+import './styles/today.css';
 import './styles/layout-1400.css';
 import './styles/design-system.css';
 

@@ -7,6 +7,7 @@ import GanttView from './components/GanttView';
 import PendingView from './components/PendingView';
 import KpiView from './components/KpiView';
 import MotivationView from './components/MotivationView';
+import TodayView from './components/TodayView';
 import FloatingTimer from './components/FloatingTimer';
 import TimeTrackingSync from './components/TimeTrackingSync';
 import TrelloView from './components/TrelloView';
@@ -102,7 +103,7 @@ export default function App() {
     reorderWorkspaces,
   } = useWorkspaces();
 
-  const [view, setView] = useState('Matrix');
+  const [view, setView] = useState('Today');
   const [subview, setSubview] = useState('Board');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCompact, setSidebarCompact] = useState(
@@ -192,10 +193,12 @@ export default function App() {
     closeModal();
   };
 
-  const handleCreateWorkspace = ({ name, icon, colorIndex, trait }) => {
-    const created = addWorkspace({ name, icon, colorIndex, trait });
+  const handleCreateWorkspace = async ({ name, icon, colorIndex, trait }) => {
+    const created = await addWorkspace({ name, icon, colorIndex, trait });
     if (created) {
-      showToast(`أُنشئت مساحة "${created.label}"`, 'ph-folder-plus');
+      showToast('أنشئت مساحة: ' + created.label, 'ph-folder-plus');
+    } else {
+      showToast('تعذر إنشاء المساحة — تأكد من تشغيل SQL المساحات', 'ph-warning', 'error');
     }
     return created;
   };
@@ -208,7 +211,7 @@ export default function App() {
   const handleArchiveSpace = async (id) => {
     const okTasks = await archiveTasksInContext(id);
     if (!okTasks) return;
-    const okSpace = archiveWorkspace(id);
+    const okSpace = await archiveWorkspace(id);
     if (okSpace) {
       showToast('أُرشفت المساحة ومهامها النشطة', 'ph-archive');
     }
@@ -255,9 +258,19 @@ export default function App() {
       }
       const spaceLabel = activeWorkspace?.label || activeWorkspaceId;
       const currentCount = visibleTasks.length;
-      const confirmed = window.confirm(
-        `سيتم أرشفة مهام مساحة «${spaceLabel}» النشطة (${currentCount}) وإضافة ${imported.length} مهمة جديدة.\n\nلا يُحذف شيء من قاعدة البيانات.\n\nهل أنت متأكد؟`
-      );
+      const msg =
+        'سيتم أرشفة مهام مساحة ' +
+        spaceLabel +
+        ' النشطة (' +
+        currentCount +
+        ') وإضافة ' +
+        imported.length +
+        ' مهمة جديدة.' +
+        '\n\n' +
+        'لا يُحذف شيء من قاعدة البيانات.' +
+        '\n\n' +
+        'هل أنت متأكد؟';
+      const confirmed = window.confirm(msg);
       if (!confirmed) return;
       await replaceTasksInContext(activeWorkspaceId, imported);
     } catch (err) {
@@ -337,6 +350,18 @@ export default function App() {
           onReorder={reorderWorkspaces}
           isAllMode={isAllMode}
         />
+
+        {view === 'Today' && (
+          <TodayView
+            tasks={visibleTasks}
+            onToggleComplete={toggleComplete}
+            onToggleSubtask={toggleSubtask}
+            onEdit={openEditModal}
+            onDelete={archiveTask}
+            workDays={workDays}
+            onGoMatrix={() => setView('Matrix')}
+          />
+        )}
 
         {view === 'Matrix' && (
           <div id="viewMatrix">
