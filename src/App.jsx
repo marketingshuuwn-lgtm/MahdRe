@@ -195,7 +195,7 @@ export default function App() {
   const handleCreateWorkspace = ({ name, icon, colorIndex, trait }) => {
     const created = addWorkspace({ name, icon, colorIndex, trait });
     if (created) {
-      showToast(`أُنشئت مساحة "${created.label}"`, 'ph-folder-plus');
+      showToast('Created workspace: ' + created.label, 'ph-folder-plus');
     }
     return created;
   };
@@ -255,9 +255,19 @@ export default function App() {
       }
       const spaceLabel = activeWorkspace?.label || activeWorkspaceId;
       const currentCount = visibleTasks.length;
-      const confirmed = window.confirm(
-        `سيتم أرشفة مهام مساحة «${spaceLabel}» النشطة (${currentCount}) وإضافة ${imported.length} مهمة جديدة.\n\nلا يُحذف شيء من قاعدة البيانات.\n\nهل أنت متأكد؟`
-      );
+      const msg =
+        'سيتم أرشفة مهام مساحة ' +
+        spaceLabel +
+        ' النشطة (' +
+        currentCount +
+        ') وإضافة ' +
+        imported.length +
+        ' مهمة جديدة.' +
+        '\n\n' +
+        'لا يُحذف شيء من قاعدة البيانات.' +
+        '\n\n' +
+        'هل أنت متأكد؟';
+      const confirmed = window.confirm(msg);
       if (!confirmed) return;
       await replaceTasksInContext(activeWorkspaceId, imported);
     } catch (err) {
@@ -293,7 +303,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app-container ${sidebarCompact ? 'sidebar-is-compact' : ''`}>
+    <div className={`app-container ${sidebarCompact ? 'sidebar-is-compact' : ''}`}>
       <div className="mobile-header">
         <div className="logo-area" style={{ marginBottom: 0 }}>
           <div className="logo-icon" style={{ width: 36, height: 36 }}>
