@@ -7,7 +7,6 @@ import {
   isTaskOverdue,
   startOfToday,
 } from '../utils/dateUtils';
-import { TASK_CONTEXTS } from '../utils/taskMeta';
 
 const QUADRANTS = [
   { id: 'all', label: 'الكل', color: '#111827' },
@@ -39,16 +38,9 @@ export default function PendingView({
   onEdit,
   onDelete,
   workDays,
-  workspaces,
 }) {
   const [qFilter, setQFilter] = useState('all');
-  const [contextFilter, setContextFilter] = useState('all');
   const [dFilter, setDFilter] = useState('all');
-
-  const contextFilters = useMemo(() => {
-    const list = Array.isArray(workspaces) && workspaces.length > 0 ? workspaces : TASK_CONTEXTS;
-    return [{ id: 'all', label: 'الكل', icon: 'ph-squares-four' }, ...list];
-  }, [workspaces]);
 
   const today = useMemo(() => startOfToday(), []);
 
@@ -59,17 +51,12 @@ export default function PendingView({
       list = list.filter((t) => t.quadrant === qFilter);
     }
 
-    if (contextFilter !== 'all') {
-      list = list.filter((t) => (t.context || 'work') === contextFilter);
-    }
-
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // بداية الأسبوع (الأحد) ونهايته
     const weekStart = new Date(today);
     weekStart.setDate(today.getDate() - today.getDay());
     weekStart.setHours(12, 0, 0, 0);
@@ -103,14 +90,14 @@ export default function PendingView({
     }
 
     return [...list].sort((a, b) => compareTasksBySchedule(a, b, { workDays }));
-  }, [tasks, qFilter, contextFilter, dFilter, today, workDays]);
+  }, [tasks, qFilter, dFilter, today, workDays]);
 
   return (
     <div>
       <div className="page-header">
         <div className="page-title">المهام المعلقة</div>
         <div className="page-desc">
-          تصفية حسب الأولوية والمساحة والتاريخ — المتكرر اليومي يحترم أيام العمل
+          تصفية حسب الأولوية والتاريخ — المساحة من الشريط العلوي، والمتكرر اليومي يحترم أيام العمل
         </div>
       </div>
 
@@ -128,24 +115,6 @@ export default function PendingView({
               >
                 <span className="filter-chip-dot" style={{ background: q.color }} />
                 {q.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="filter-group">
-          <span className="filter-label">المساحة</span>
-          <div className="filter-chips">
-            {contextFilters.map((ctx) => (
-              <button
-                key={ctx.id}
-                type="button"
-                className={`filter-chip ${contextFilter === ctx.id ? 'active' : ''}`}
-                onClick={() => setContextFilter(ctx.id)}
-                title={ctx.label}
-              >
-                <i className={`ph ${ctx.icon}`}></i>
-                {ctx.label}
               </button>
             ))}
           </div>
