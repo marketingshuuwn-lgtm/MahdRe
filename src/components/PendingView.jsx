@@ -1,35 +1,64 @@
 import { useMemo, useState } from 'react';
-import TaskCard from './TaskCard';
+import TaskRow from './TaskRow';
 import {
   compareTasksBySchedule,
   getOccurrenceDates,
   getTaskStartDate,
   isTaskOverdue,
   startOfToday,
+  toLocalISO,
 } from '../utils/dateUtils';
 
 const QUADRANTS = [
-  { id: 'all', label: 'الكل', color: '#111827' },
+  { id: 'all', label: 'الكل', color: 'var(--text-primary)' },
   { id: 'important-urgent', label: 'مهم ومستعجل', color: 'var(--danger)' },
   { id: 'important-not-urgent', label: 'مهم غير مستعجل', color: 'var(--accent)' },
   { id: 'not-important-urgent', label: 'غير مهم ومستعجل', color: 'var(--warning)' },
-  { id: 'not-important-not-urgent', label: 'غير مهم غير مستعجل', color: 'var(--text-secondary)' },
+  { id: 'not-important-not-urgent', label: 'غير مهم غير مستعجل', color: 'var(--q4)' },
 ];
 
 const DATE_FILTERS = [
   { id: 'all', label: 'الكل' },
   { id: 'overdue', label: 'متأخر' },
-  { id: 'yesterday', label: 'أمس' },
   { id: 'today', label: 'اليوم' },
   { id: 'tomorrow', label: 'غدا' },
   { id: 'week', label: 'هذا الأسبوع' },
   { id: 'nextweek', label: 'الأسبوع القادم' },
   { id: 'nodate', label: 'بدون تاريخ' },
-  { id: 'range', label: 'تاريخ محدد' },
+  { id: 'range', label: 'نطاق' },
+];
+
+const TIME_GROUPS = [
+  { id: 'overdue', label: 'متأخرة', color: 'var(--danger)' },
+  { id: 'today', label: 'اليوم', color: 'var(--accent)' },
+  { id: 'tomorrow', label: 'غداً', color: 'var(--warning)' },
+  { id: 'week', label: 'هذا الأسبوع', color: 'var(--success)' },
+  { id: 'later', label: 'لاحقاً', color: 'var(--text-secondary)' },
+  { id: 'nodate', label: 'بدون تاريخ', color: 'var(--q4)' },
 ];
 
 function hasOccurrenceInRange(task, fromDate, toDate, workDays) {
   return getOccurrenceDates(task, fromDate, toDate, { workDays }).length > 0;
+}
+
+function assignTimeBucket(task, today, workDays) {
+  if (!getTaskStartDate(task) && !task.recurrence) return 'nodate';
+  if (isTaskOverdue(task)) return 'overdue';
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  if (hasOccurrenceInRange(task, today, today, workDays)) return 'today';
+  if (hasOccurrenceInRange(task, tomorrow, tomorrow, workDays)) return 'tomorrow';
+
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay());
+  weekStart.setHours(12, 0, 0, 0);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+
+  if (hasOccurrenceInRange(task, today, weekEnd, workDays)) return 'week';
+  return 'later';
 }
 
 export default function PendingView({
@@ -40,7 +69,6 @@ export default function PendingView({
   onEdit,
   onDelete,
   workDays,
-  workspaces,
 }) {
   const [qFilter, setQFilter] = useState('all');
   const [dFilter, setDFilter] = useState('all');
@@ -58,63 +86,60 @@ export default function PendingView({
 
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // بداية الأسبوع (الأحد) ونهايته
     const weekStart = new Date(today);
     weekStart.setDate(today.getDate() - today.getDay());
     weekStart.setHours(12, 0, 0, 0);
     const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 7);
-    const weekEndInclusive = new Date(weekEnd);
-    weekEndInclusive.setDate(weekEndInclusive.getDate() - 1);
+    weekEnd.setDate(weekStart.getDate() + 6);
 
-    const nextWeekStart = new Date(weekEnd);
+    const nextWeekStart = new Date(weekStart);
+    nextWeekStart.setDate(weekStart.getDate() + 7);
     const nextWeekEnd = new Date(nextWeekStart);
-    nextWeekEnd.setDate(nextWeekStart.getDate() + 7);
-    const nextWeekEndInclusive = new Date(nextWeekEnd);
-    nextWeekEndInclusive.setDate(nextWeekEndInclusive.getDate() - 1);
+    nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
 
-    if (dFilter === 'overdue') {
-      list = list.filter((t) => isTaskOverdue(t));
-    } else if (dFilter === 'yesterday') {
-      list = list.filter((t) => hasOccurrenceInRange(t, yesterday, yesterday, workDays));
-    } else if (dFilter === 'today') {
-      list = list.filter((t) => hasOccurrenceInRange(t, today, today, workDays));
-    } else if (dFilter === 'tomorrow') {
+    if (dFilter === 'overdue') list = list.filter((t) => isTaskOverdue(t));
+    else if (dFilter === 'today') list = list.filter((t) => hasOccurrenceInRange(t, today, today, workDays));
+    else if (dFilter === 'tomorrow')
       list = list.filter((t) => hasOccurrenceInRange(t, tomorrow, tomorrow, workDays));
-    } else if (dFilter === 'week') {
-      list = list.filter((t) => hasOccurrenceInRange(t, weekStart, weekEndInclusive, workDays));
-    } else if (dFilter === 'nextweek') {
-      list = list.filter((t) =>
-        hasOccurrenceInRange(t, nextWeekStart, nextWeekEndInclusive, workDays)
-      );
-    } else if (dFilter === 'nodate') {
-      list = list.filter((t) => !getTaskStartDate(t));
-    } else if (dFilter === 'range' && rangeFrom && rangeTo) {
-      const from = new Date(rangeFrom + 'T12:00:00');
-      const to = new Date(rangeTo + 'T12:00:00');
+    else if (dFilter === 'week')
+      list = list.filter((t) => hasOccurrenceInRange(t, weekStart, weekEnd, workDays));
+    else if (dFilter === 'nextweek')
+      list = list.filter((t) => hasOccurrenceInRange(t, nextWeekStart, nextWeekEnd, workDays));
+    else if (dFilter === 'nodate') list = list.filter((t) => !getTaskStartDate(t));
+    else if (dFilter === 'range' && rangeFrom && rangeTo) {
+      const from = new Date(`${rangeFrom}T12:00:00`);
+      const to = new Date(`${rangeTo}T12:00:00`);
       list = list.filter((t) => hasOccurrenceInRange(t, from, to, workDays));
     }
 
     return [...list].sort((a, b) => compareTasksBySchedule(a, b, { workDays }));
   }, [tasks, qFilter, dFilter, rangeFrom, rangeTo, today, workDays]);
 
+  const groups = useMemo(() => {
+    const map = Object.fromEntries(TIME_GROUPS.map((g) => [g.id, []]));
+    filtered.forEach((t) => {
+      const bucket = assignTimeBucket(t, today, workDays);
+      if (map[bucket]) map[bucket].push(t);
+      else map.later.push(t);
+    });
+    return TIME_GROUPS.map((g) => ({ ...g, items: map[g.id] || [] })).filter((g) => g.items.length > 0);
+  }, [filtered, today, workDays]);
+
   return (
-    <div>
+    <div className="pending-view">
       <div className="page-header">
         <div className="page-title">المهام المعلقة</div>
         <div className="page-desc">
-          تصفية حسب الأولوية والتاريخ — استخدم شريط المساحات بالأعلى للتصفية حسب المساحة —
-          المتكرر اليومي يحترم أيام العمل
+          مجمّعة زمنياً · فلتر أولوية وتاريخ · المساحة من الشريط العلوي
         </div>
       </div>
 
-      <div className="filter-bar card">
-        <div className="filter-group">
-          <span className="filter-label">الأولوية</span>
+      <div className="pending-toolbar">
+        <div className="pending-toolbar-row">
+          <span className="pending-toolbar-label">أولوية</span>
           <div className="filter-chips">
             {QUADRANTS.map((q) => (
               <button
@@ -130,9 +155,8 @@ export default function PendingView({
             ))}
           </div>
         </div>
-
-        <div className="filter-group">
-          <span className="filter-label">التاريخ</span>
+        <div className="pending-toolbar-row">
+          <span className="pending-toolbar-label">تاريخ</span>
           <div className="filter-chips">
             {DATE_FILTERS.map((f) => (
               <button
@@ -165,26 +189,46 @@ export default function PendingView({
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 20 }}>
-        <div className="pending-count-hint">{filtered.length} مهمة</div>
-        {filtered.length === 0 ? (
-          <div className="empty-state">لا توجد مهام مطابقة للفلاتر</div>
-        ) : (
-          filtered.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              onToggleComplete={onToggleComplete}
-                onSetStatus={onSetStatus}
-              onToggleSubtask={onToggleSubtask}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              draggable={false}
-              workDays={workDays}
-            />
-          ))
-        )}
-      </div>
+      <p className="pending-count-hint">{filtered.length} مهمة</p>
+
+      {filtered.length === 0 ? (
+        <div className="matrix-empty pending-empty">
+          <i className="ph ph-check-circle" />
+          <p>لا مهام معلقة مطابقة</p>
+          <span>غيّر الفلاتر أو أضف مهمة جديدة</span>
+        </div>
+      ) : (
+        <div className="matrix-sections">
+          {groups.map((g) => (
+            <section
+              key={g.id}
+              className="matrix-section"
+              style={{ '--section-color': g.color }}
+            >
+              <div className="matrix-section-header pending-group-head">
+                <span className="matrix-section-edge" aria-hidden />
+                <span className="matrix-section-title">{g.label}</span>
+                <span className="matrix-section-count">{g.items.length}</span>
+              </div>
+              <div className="matrix-section-body">
+                {g.items.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    onToggleComplete={onToggleComplete}
+                    onSetStatus={onSetStatus}
+                    onToggleSubtask={onToggleSubtask}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    draggable={false}
+                    workDays={workDays}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

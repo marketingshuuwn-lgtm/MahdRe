@@ -1,6 +1,5 @@
 /**
- * Phase 1 restructure — stacked matrix + TaskRow
- * Flat sections: no 2×2 grid, height follows content.
+ * Phase 1–2 — stacked matrix + TaskRow + pending/archive groups
  */
 
 .matrix-stack {
@@ -83,6 +82,10 @@
   color: var(--text-primary);
 }
 
+.pending-group-head {
+  cursor: default;
+}
+
 .matrix-section-edge {
   width: 4px;
   align-self: stretch;
@@ -127,7 +130,7 @@
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 20px 12px;
+  padding: 28px 12px;
   color: var(--text-muted);
   text-align: center;
 }
@@ -148,6 +151,39 @@
   font-size: var(--fs-xs);
 }
 
+/* Pending toolbar — flat, not a nested card box */
+.pending-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0 4px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.pending-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pending-toolbar-label {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  min-width: 40px;
+}
+
+.pending-count-hint {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin: 8px 0 12px;
+}
+
+.pending-empty {
+  margin-top: 12px;
+}
+
 /* ─── TaskRow ─── */
 .task-row {
   display: flex;
@@ -158,6 +194,10 @@
   background: transparent;
   transition: background 0.15s ease;
   cursor: grab;
+}
+
+.task-row.is-archive {
+  cursor: default;
 }
 
 .task-row:last-child {
@@ -212,6 +252,14 @@
 .task-row-status.status-completed {
   background: var(--accent);
   border-color: var(--accent);
+}
+
+.task-row-status.status-archived {
+  border-color: transparent;
+  background: var(--hover-bg);
+  color: var(--text-muted);
+  cursor: default;
+  font-size: 13px;
 }
 
 .task-row-body {
@@ -322,7 +370,6 @@
   padding: 3px 4px;
 }
 
-/* إجراءات مخفية افتراضياً — تظهر عند hover/focus */
 .task-row-actions {
   display: flex;
   align-items: center;

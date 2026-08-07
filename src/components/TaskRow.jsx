@@ -20,7 +20,7 @@ function formatSpent(seconds) {
 
 /**
  * صف مهمة موحّد — مسطّح بلا بطاقة داخل بطاقة.
- * يُستخدم في المصفوفة (مرحلة 1) ثم المعلقة/الأرشيف.
+ * variant: default | archive
  */
 export default function TaskRow({
   task,
@@ -29,10 +29,13 @@ export default function TaskRow({
   onToggleSubtask,
   onEdit,
   onDelete,
+  onRestore,
+  variant = 'default',
   draggable = true,
   workDays,
 }) {
-  const overdue = isTaskOverdue(task);
+  const isArchive = variant === 'archive';
+  const overdue = !isArchive && isTaskOverdue(task);
   const contextMeta = getTaskContextMeta(task.context);
   const subtasks = normalizeSubtasks(task.subtasks);
   const subtaskStats = getSubtaskStats(subtasks);
@@ -52,41 +55,55 @@ export default function TaskRow({
 
   return (
     <div
-      className={`task-row ${task.completed ? 'is-completed' : ''} ${overdue ? 'is-overdue' : ''}`}
+      className={`task-row ${task.completed ? 'is-completed' : ''} ${overdue ? 'is-overdue' : ''} ${isArchive ? 'is-archive' : ''}`}
       style={{ '--q-color': qColor, '--ctx-color': contextMeta.color, '--ctx-bg': contextMeta.bg }}
-      draggable={draggable}
+      draggable={draggable && !isArchive}
       onDragStart={(e) => {
+        if (isArchive) return;
         e.dataTransfer.setData('text/plain', String(task.id));
         e.dataTransfer.effectAllowed = 'move';
         e.currentTarget.classList.add('is-dragging');
       }}
       onDragEnd={(e) => e.currentTarget.classList.remove('is-dragging')}
     >
-      <button
-        type="button"
-        className={`task-row-status status-${status}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          const order = ['not_started', 'in_progress', 'completed'];
-          const next = order[(order.indexOf(status) + 1) % order.length];
-          if (onSetStatus) onSetStatus(task.id, next);
-          else onToggleComplete?.(task.id);
-        }}
-        title={
-          {
-            not_started: 'لم تبدأ — اضغط للبدء',
-            in_progress: 'قيد التنفيذ — اضغط للإكمال',
-            completed: 'مكتملة — اضغط لإعادة الفتح',
-          }[status]
-        }
-        aria-label="حالة المهمة"
-      >
-        {status === 'completed' && <i className="ph ph-check" />}
-        {status === 'in_progress' && <span className="status-dot" />}
-      </button>
+      {!isArchive ? (
+        <button
+          type="button"
+          className={`task-row-status status-${status}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            const order = ['not_started', 'in_progress', 'completed'];
+            const next = order[(order.indexOf(status) + 1) % order.length];
+            if (onSetStatus) onSetStatus(task.id, next);
+            else onToggleComplete?.(task.id);
+          }}
+          title={
+            {
+              not_started: 'لم تبدأ — اضغط للبدء',
+              in_progress: 'قيد التنفيذ — اضغط للإكمال',
+              completed: 'مكتملة — اضغط لإعادة الفتح',
+            }[status]
+          }
+          aria-label="حالة المهمة"
+        >
+          {status === 'completed' && <i className="ph ph-check" />}
+          {status === 'in_progress' && <span className="status-dot" />}
+        </button>
+      ) : (
+        <span className="task-row-status status-archived" title="مؤرشفة" aria-hidden>
+          <i className="ph ph-archive" />
+        </span>
+      )}
 
-      <div className="task-row-body" onClick={() => onEdit?.(task.id)} role="button" tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter') onEdit?.(task.id); }}>
+      <div
+        className="task-row-body"
+        onClick={() => onEdit?.(task.id)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onEdit?.(task.id);
+        }}
+      >
         <div className="task-row-main">
           <span className="task-row-title">{task.title}</span>
           <div className="task-row-chips">
@@ -116,6 +133,9 @@ export default function TaskRow({
                 {subtaskStats.completed}/{subtaskStats.total}
               </span>
             )}
+            {isArchive && task.completed && (
+              <span className="task-row-chip mute">كانت مكتملة</span>
+            )}
           </div>
         </div>
         <div className={`task-row-date ${overdue ? 'overdue' : ''}`}>
@@ -123,7 +143,7 @@ export default function TaskRow({
           <span>{formatTaskSchedule(task, { workDays })}</span>
           {overdue && <span className="overdue-tag">متأخرة</span>}
         </div>
-        {subtaskStats.total > 0 && (
+        {!isArchive && subtaskStats.total > 0 && (
           <div className="task-row-subtasks" onClick={(e) => e.stopPropagation()}>
             {subtasks.slice(0, 3).map((item) => (
               <button
@@ -144,86 +164,115 @@ export default function TaskRow({
       </div>
 
       <div className="task-row-actions" onMouseDown={(e) => e.stopPropagation()}>
-        {task.externalUrl && (
-          <a
-            href={task.externalUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="btn-icon"
-            title="فتح في تريلو"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <i className="ph ph-arrow-square-out" />
-          </a>
+        {isArchive ? (
+          <>
+            <button
+              type="button"
+              className="btn-icon"
+              title="استرجاع"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRestore?.(task.id);
+              }}
+            >
+              <i className="ph ph-arrow-counter-clockwise" />
+            </button>
+            <button
+              type="button"
+              className="btn-icon"
+              title="عرض / تعديل"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit?.(task.id);
+              }}
+            >
+              <i className="ph ph-pencil-simple" />
+            </button>
+          </>
+        ) : (
+          <>
+            {task.externalUrl && (
+              <a
+                href={task.externalUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-icon"
+                title="فتح في تريلو"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <i className="ph ph-arrow-square-out" />
+              </a>
+            )}
+            <button
+              type="button"
+              className={`btn-icon ${isTracking ? 'time-tracking-active' : ''}`}
+              title={isTracking ? 'إيقاف التتبع' : 'تتبع الوقت'}
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(
+                  new CustomEvent('toggle-time-tracking', {
+                    detail: { taskId: task.id, title: task.title },
+                  })
+                );
+              }}
+            >
+              <i className={`ph ${isTracking ? 'ph-pause-circle' : 'ph-clock-countdown'}`} />
+            </button>
+            {isTracking && <span className="time-tracking-badge">{trackingState.label}</span>}
+            <button
+              type="button"
+              className="btn-icon"
+              title="بومودورو"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(
+                  new CustomEvent('start-pomodoro-task', {
+                    detail: { taskId: task.id, title: task.title, context: task.context },
+                  })
+                );
+              }}
+            >
+              <i className="ph ph-play-circle" />
+            </button>
+            <button
+              type="button"
+              className="btn-icon"
+              title="مسودات"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(
+                  new CustomEvent('open-task-notes', {
+                    detail: { taskId: task.id, title: task.title },
+                  })
+                );
+              }}
+            >
+              <i className="ph ph-note-pencil" />
+            </button>
+            <button
+              type="button"
+              className="btn-icon"
+              title="تعديل"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit?.(task.id);
+              }}
+            >
+              <i className="ph ph-pencil-simple" />
+            </button>
+            <button
+              type="button"
+              className="btn-icon danger"
+              title="أرشفة"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete?.(task.id);
+              }}
+            >
+              <i className="ph ph-archive" />
+            </button>
+          </>
         )}
-        <button
-          type="button"
-          className={`btn-icon ${isTracking ? 'time-tracking-active' : ''}`}
-          title={isTracking ? 'إيقاف التتبع' : 'تتبع الوقت'}
-          onClick={(e) => {
-            e.stopPropagation();
-            window.dispatchEvent(
-              new CustomEvent('toggle-time-tracking', {
-                detail: { taskId: task.id, title: task.title },
-              })
-            );
-          }}
-        >
-          <i className={`ph ${isTracking ? 'ph-pause-circle' : 'ph-clock-countdown'}`} />
-        </button>
-        {isTracking && <span className="time-tracking-badge">{trackingState.label}</span>}
-        <button
-          type="button"
-          className="btn-icon"
-          title="بومودورو"
-          onClick={(e) => {
-            e.stopPropagation();
-            window.dispatchEvent(
-              new CustomEvent('start-pomodoro-task', {
-                detail: { taskId: task.id, title: task.title, context: task.context },
-              })
-            );
-          }}
-        >
-          <i className="ph ph-play-circle" />
-        </button>
-        <button
-          type="button"
-          className="btn-icon"
-          title="مسودات"
-          onClick={(e) => {
-            e.stopPropagation();
-            window.dispatchEvent(
-              new CustomEvent('open-task-notes', {
-                detail: { taskId: task.id, title: task.title },
-              })
-            );
-          }}
-        >
-          <i className="ph ph-note-pencil" />
-        </button>
-        <button
-          type="button"
-          className="btn-icon"
-          title="تعديل"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit?.(task.id);
-          }}
-        >
-          <i className="ph ph-pencil-simple" />
-        </button>
-        <button
-          type="button"
-          className="btn-icon danger"
-          title="أرشفة"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete?.(task.id);
-          }}
-        >
-          <i className="ph ph-archive" />
-        </button>
       </div>
     </div>
   );
