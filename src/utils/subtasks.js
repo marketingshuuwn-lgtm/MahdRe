@@ -6,41 +6,48 @@ export function createSubtask(title = '') {
 
   return {
     id,
-    title: String(title || '').trim(),
+    title: String(title || ''),
     completed: false,
     sortOrder: 0,
   };
 }
 
-export function normalizeSubtasks(subtasks) {
+/**
+ * @param {unknown} subtasks
+ * @param {{ forSave?: boolean }} [opts] — forSave=true يقصّ الفراغات ويحذف الفارغ (عند الحفظ فقط)
+ */
+export function normalizeSubtasks(subtasks, opts = {}) {
+  const forSave = Boolean(opts.forSave);
   if (!Array.isArray(subtasks)) return [];
 
-  return subtasks
-    .map((item, index) => {
-      if (typeof item === 'string') {
-        return {
-          id: `sub-${index}-${item}`,
-          title: item.trim(),
-          completed: false,
-          sortOrder: index,
-        };
-      }
-
+  const mapped = subtasks.map((item, index) => {
+    if (typeof item === 'string') {
+      const title = forSave ? item.trim() : item;
       return {
-        id: item?.id || `sub-${index}-${Date.now()}`,
-        title: String(item?.title || '').trim(),
-        completed: !!item?.completed,
-        sortOrder: Number.isFinite(Number(item?.sortOrder ?? item?.sort_order))
-          ? Number(item?.sortOrder ?? item?.sort_order)
-          : index,
+        id: `sub-${index}-${item}`,
+        title,
+        completed: false,
+        sortOrder: index,
       };
-    })
-    .filter((item) => item.title)
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    }
+
+    const rawTitle = String(item?.title ?? '');
+    return {
+      id: item?.id || `sub-${index}-${Date.now()}`,
+      title: forSave ? rawTitle.trim() : rawTitle,
+      completed: !!item?.completed,
+      sortOrder: Number.isFinite(Number(item?.sortOrder ?? item?.sort_order))
+        ? Number(item?.sortOrder ?? item?.sort_order)
+        : index,
+    };
+  });
+
+  const list = forSave ? mapped.filter((item) => item.title.trim()) : mapped;
+  return list.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 }
 
 export function getSubtaskStats(subtasks) {
-  const normalized = normalizeSubtasks(subtasks);
+  const normalized = normalizeSubtasks(subtasks, { forSave: true });
   const total = normalized.length;
   const completed = normalized.filter((item) => item.completed).length;
   return {

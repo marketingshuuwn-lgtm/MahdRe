@@ -1,0 +1,44 @@
+/* مسودة نافذة المهمة */
+.task-draft-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--accent-light);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+}
+
+.task-draft-banner-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.task-draft-banner-text .ph {
+  color: var(--accent);
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.task-draft-banner-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.task-draft-banner-actions .btn-secondary {
+  min-height: 32px;
+  padding: 6px 12px;
+  font-size: var(--fs-xs);
+}
+
+.subtask-input {
+  flex: 1;
+  min-width: 0;
+}

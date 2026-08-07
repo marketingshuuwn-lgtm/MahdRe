@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createSubtask, normalizeSubtasks } from '../utils/subtasks';
 import {
   DEFAULT_WORKSPACES,
@@ -8,6 +8,7 @@ import {
 } from '../utils/taskMeta';
 
 const DEFAULT_RECURRENCE_LIFETIME_DAYS = 365;
+const DRAFT_PREFIX = 'mahd_task_draft_v1:';
 
 const EMPTY_FORM = {
   title: '',
@@ -22,6 +23,72 @@ const EMPTY_FORM = {
   recurrenceDays: [],
 };
 
+function draftKey(taskId) {
+  return `${DRAFT_PREFIX}${taskId ?? 'new'}`;
+}
+
+function readDraft(taskId) {
+  try {
+    const raw = localStorage.getItem(draftKey(taskId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || !parsed.form) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(taskId, form) {
+  try {
+    localStorage.setItem(
+      draftKey(taskId),
+      JSON.stringify({ form, savedAt: new Date().toISOString() })
+    );
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function clearDraft(taskId) {
+  try {
+    localStorage.removeItem(draftKey(taskId));
+  } catch {
+    /* ignore */
+  }
+}
+
+function formFromTask(task, defaultContext) {
+  if (!task) {
+    return { ...EMPTY_FORM, context: normalizeTaskContext(defaultContext) };
+  }
+  return {
+    title: task.title || '',
+    quadrant: task.quadrant,
+    context: normalizeTaskContext(task.context),
+    status: task.status || (task.completed ? 'completed' : 'not_started'),
+    subtasks: normalizeSubtasks(task.subtasks),
+    dueDate: task.dueDate || '',
+    notes: task.notes || '',
+    duration: task.duration || 1,
+    recurrence: task.recurrence || null,
+    recurrenceDays: task.recurrenceDays || [],
+  };
+}
+
+function isDirty(form, baseline) {
+  try {
+    return JSON.stringify(form) !== JSON.stringify(baseline);
+  } catch {
+    return true;
+  }
+}
+
+/** يمنع اختصارات الصفحة من ابتلاع المسافة أثناء الكتابة */
+function stopKeys(e) {
+  e.stopPropagation();
+}
+
 export default function TaskModal({
   isOpen,
   task,
@@ -32,27 +99,78 @@ export default function TaskModal({
   workspaces = DEFAULT_WORKSPACES,
 }) {
   const [form, setForm] = useState(EMPTY_FORM);
+  const [baseline, setBaseline] = useState(EMPTY_FORM);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [draftBanner, setDraftBanner] = useState(null);
+  const taskIdRef = useRef(null);
+  const formRef = useRef(form);
+  const baselineRef = useRef(baseline);
 
+  formRef.current = form;
+  baselineRef.current = baseline;
+  taskIdRef.current = task?.id ?? null;
+
+  const dirty = useMemo(() => isDirty(form, baseline), [form, baseline]);
+
+  // تحميل المهمة + مسودة إن وُجدت
   useEffect(() => {
-    if (task) {
+    if (!isOpen) return;
+
+    const base = formFromTask(task, defaultContext);
+    const draft = readDraft(task?.id ?? null);
+
+    if (draft?.form && isDirty(draft.form, base)) {
       setForm({
-        title: task.title,
-        quadrant: task.quadrant,
-        context: normalizeTaskContext(task.context),
-        status: task.status || (task.completed ? 'completed' : 'not_started'),
-        subtasks: normalizeSubtasks(task.subtasks),
-        dueDate: task.dueDate || '',
-        notes: task.notes || '',
-        duration: task.duration || 1,
-        recurrence: task.recurrence || null,
-        recurrenceDays: task.recurrenceDays || [],
+        ...base,
+        ...draft.form,
+        subtasks: Array.isArray(draft.form.subtasks)
+          ? draft.form.subtasks
+          : base.subtasks,
+      });
+      setBaseline(base);
+      setDraftBanner({
+        savedAt: draft.savedAt,
+        message: 'وُجدت مسودة غير محفوظة لهذه المهمة',
       });
     } else {
-      setForm({ ...EMPTY_FORM, context: normalizeTaskContext(defaultContext) });
+      setForm(base);
+      setBaseline(base);
+      setDraftBanner(null);
     }
     setNewSubtaskTitle('');
   }, [task, isOpen, defaultContext]);
+
+  // حفظ مسودة تلقائي أثناء الكتابة (debounce)
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    if (!dirty) return undefined;
+
+    const t = setTimeout(() => {
+      writeDraft(taskIdRef.current, formRef.current);
+      setDraftBanner((prev) => ({
+        savedAt: new Date().toISOString(),
+        message: prev?.message || 'مسودة محفوظة محلياً',
+      }));
+    }, 450);
+
+    return () => clearTimeout(t);
+  }, [form, dirty, isOpen]);
+
+  const persistDraftAndClose = useCallback(() => {
+    if (isDirty(formRef.current, baselineRef.current)) {
+      writeDraft(taskIdRef.current, formRef.current);
+    }
+    onClose();
+  }, [onClose]);
+
+  const discardDraft = useCallback(() => {
+    clearDraft(taskIdRef.current);
+    const base = formFromTask(task, defaultContext);
+    setForm(base);
+    setBaseline(base);
+    setDraftBanner(null);
+    setNewSubtaskTitle('');
+  }, [task, defaultContext]);
 
   if (!isOpen) return null;
 
@@ -67,22 +185,27 @@ export default function TaskModal({
   };
 
   const addSubtask = () => {
-    const title = newSubtaskTitle.trim();
-    if (!title) return;
+    // لا trim هنا حتى لا تُبتلع المسافات أثناء الإضافة؛ يُنظَّف عند الحفظ
+    const title = newSubtaskTitle;
+    if (!title.trim()) return;
     setForm((f) => {
-      const current = normalizeSubtasks(f.subtasks);
+      const current = Array.isArray(f.subtasks) ? f.subtasks : [];
       return {
         ...f,
-        subtasks: [...current, { ...createSubtask(title), sortOrder: current.length }],
+        subtasks: [
+          ...current,
+          { ...createSubtask(title), sortOrder: current.length },
+        ],
       };
     });
     setNewSubtaskTitle('');
   };
 
   const updateSubtask = (subtaskId, patch) => {
+    // بدون normalizeSubtasks في كل ضغطة — حتى تبقى المسافة والنص كما يُكتب
     setForm((f) => ({
       ...f,
-      subtasks: normalizeSubtasks(f.subtasks).map((item) =>
+      subtasks: (Array.isArray(f.subtasks) ? f.subtasks : []).map((item) =>
         String(item.id) === String(subtaskId) ? { ...item, ...patch } : item
       ),
     }));
@@ -91,7 +214,9 @@ export default function TaskModal({
   const removeSubtask = (subtaskId) => {
     setForm((f) => ({
       ...f,
-      subtasks: normalizeSubtasks(f.subtasks).filter((item) => String(item.id) !== String(subtaskId)),
+      subtasks: (Array.isArray(f.subtasks) ? f.subtasks : []).filter(
+        (item) => String(item.id) !== String(subtaskId)
+      ),
     }));
   };
 
@@ -100,13 +225,15 @@ export default function TaskModal({
     const title = form.title.trim();
     if (!title) return;
     const duration = Math.max(1, parseInt(form.duration, 10) || 1);
+    clearDraft(task?.id ?? null);
+    setDraftBanner(null);
     onSave(
       {
         ...form,
         title,
         duration,
         context: normalizeTaskContext(form.context),
-        subtasks: normalizeSubtasks(form.subtasks),
+        subtasks: normalizeSubtasks(form.subtasks, { forSave: true }),
         recurrence: form.recurrence || null,
         recurrenceDays: form.recurrence === 'weekly' ? form.recurrenceDays : [],
       },
@@ -116,21 +243,44 @@ export default function TaskModal({
 
   const isRecurring = form.recurrence === 'daily' || form.recurrence === 'weekly';
   const spaceOptions = workspaces?.length ? workspaces : DEFAULT_WORKSPACES;
+  const subtasksList = Array.isArray(form.subtasks) ? form.subtasks : [];
 
   return (
     <div
       className="modal-overlay open"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) persistDraftAndClose();
       }}
     >
-      <div className="modal-box card">
+      <div
+        className="modal-box card"
+        onKeyDown={stopKeys}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>{task ? 'تعديل المهمة' : 'إضافة مهمة جديدة'}</h3>
-          <button type="button" className="btn-icon" onClick={onClose}>
+          <button type="button" className="btn-icon" onClick={persistDraftAndClose} title="إغلاق (تُحفظ مسودة إن وُجد تعديل)">
             <i className="ph ph-x" style={{ fontSize: 20 }}></i>
           </button>
         </div>
+
+        {draftBanner && (
+          <div className="task-draft-banner" role="status">
+            <div className="task-draft-banner-text">
+              <i className="ph ph-floppy-disk" />
+              <span>
+                {draftBanner.message}
+                {dirty ? ' · تُحدَّث تلقائياً أثناء الكتابة' : ''}
+              </span>
+            </div>
+            <div className="task-draft-banner-actions">
+              <button type="button" className="btn-secondary" onClick={discardDraft}>
+                تجاهل المسودة
+              </button>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="form-field">
             <label>عنوان المهمة</label>
@@ -140,6 +290,7 @@ export default function TaskModal({
               required
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
+              onKeyDown={stopKeys}
             />
           </div>
 
@@ -206,10 +357,9 @@ export default function TaskModal({
                   type="button"
                   className={`chip-btn ${(form.recurrence || null) === opt.id ? 'active' : ''}`}
                   onClick={() => {
-                    const wasRecurring = form.recurrence === 'daily' || form.recurrence === 'weekly';
+                    const wasRecurring =
+                      form.recurrence === 'daily' || form.recurrence === 'weekly';
                     const willBeRecurring = opt.id === 'daily' || opt.id === 'weekly';
-                    // لو كان يتحوّل من "مرة واحدة" لمتكرر، والقيمة لسا بالافتراضي (1) ولم يعدّلها المستخدم،
-                    // نرفعها تلقائياً لقيمة عملية حتى لا يتوقف التكرار بعد يوم واحد بدون أن يلاحظ.
                     const nextDuration =
                       !wasRecurring && willBeRecurring && Number(form.duration) <= 1
                         ? DEFAULT_RECURRENCE_LIFETIME_DAYS
@@ -287,16 +437,17 @@ export default function TaskModal({
               rows={3}
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              onKeyDown={stopKeys}
             />
           </div>
 
           <div className="form-field">
             <label>مهام فرعية / Checklist</label>
             <div className="subtask-editor-list">
-              {normalizeSubtasks(form.subtasks).length === 0 ? (
+              {subtasksList.length === 0 ? (
                 <div className="subtask-empty-hint">أضف خطوات صغيرة لتوضيح الإنجاز.</div>
               ) : (
-                normalizeSubtasks(form.subtasks).map((item) => (
+                subtasksList.map((item) => (
                   <div key={item.id} className="subtask-editor-row">
                     <button
                       type="button"
@@ -311,7 +462,9 @@ export default function TaskModal({
                       className="form-input subtask-input"
                       value={item.title}
                       onChange={(e) => updateSubtask(item.id, { title: e.target.value })}
+                      onKeyDown={stopKeys}
                       placeholder="عنوان المهمة الفرعية"
+                      autoComplete="off"
                     />
                     <button
                       type="button"
@@ -332,12 +485,14 @@ export default function TaskModal({
                 value={newSubtaskTitle}
                 onChange={(e) => setNewSubtaskTitle(e.target.value)}
                 onKeyDown={(e) => {
+                  stopKeys(e);
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     addSubtask();
                   }
                 }}
                 placeholder="مثال: تجهيز العرض"
+                autoComplete="off"
               />
               <button type="button" className="btn-secondary" onClick={addSubtask}>
                 إضافة
@@ -349,8 +504,9 @@ export default function TaskModal({
             <button type="submit" className="btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
               حفظ
             </button>
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              إلغاء
+            <button type="button" className="btn-secondary" onClick={persistDraftAndClose}>
+              إغلاق
+              {dirty ? ' · مسودة' : ''}
             </button>
           </div>
         </form>

@@ -14,6 +14,7 @@ import './styles/break-space.css';
 import './styles/task-notes.css';
 import './styles/notepad.css';
 import './styles/nav-data.css';
+import './styles/task-modal-draft.css';
 
 /* 3. Design system (tokens + controls — no matrix layout) */
 import './styles/design-system.css';
@@ -32,9 +33,6 @@ import './styles/settings-tabs.css';
 import './styles/kpi-motion.css';
 import './styles/shortcuts-help.css';
 import './styles/ux-motion.css';
-
-/* Deprecated stubs kept out of cascade (empty / @import only):
-   layout-1400.css, visual-polish.css, sidebar-collapse.css */
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
