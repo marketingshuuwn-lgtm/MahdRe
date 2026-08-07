@@ -29,11 +29,13 @@ export default function TaskRow({
   variant = 'default',
   draggable = true,
   workDays,
+  workspaces = null,
   exiting = false,
 }) {
   const isArchive = variant === 'archive';
   const overdue = !isArchive && isTaskOverdue(task);
-  const contextMeta = getTaskContextMeta(task.context);
+  // وسم حي: يعتمد task.context + قائمة المساحات (إعادة التسمية تظهر فوراً)
+  const contextMeta = getTaskContextMeta(task.context, workspaces);
   const subtasks = normalizeSubtasks(task.subtasks);
   const subtaskStats = getSubtaskStats(subtasks);
   const qColor = QUADRANT_COLORS[task.quadrant] || 'var(--accent)';
@@ -104,7 +106,10 @@ export default function TaskRow({
         <div className="task-row-main">
           <span className="task-row-title">{task.title}</span>
           <div className="task-row-chips">
-            <span className="task-row-chip context" title={contextMeta.label}>
+            <span
+              className="task-row-chip context"
+              title={`المساحة: ${contextMeta.label} (${contextMeta.id})`}
+            >
               <i className={`ph ${contextMeta.icon}`} />
               {contextMeta.label}
             </span>
