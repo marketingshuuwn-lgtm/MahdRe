@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { isTaskOverdue, startOfToday, toLocalISO } from '../utils/dateUtils';
 import { DEFAULT_WORKSPACES, TRELLO_WORKSPACE_ID, normalizeTaskContext } from '../utils/taskMeta';
 
 const Q_NAMES = {
@@ -23,6 +24,8 @@ const PERIODS = [
   { id: 'custom', label: 'تاريخ محدد' },
 ];
 
+const DAY_SHORT = ['أحد', 'إثن', 'ثلا', 'أرب', 'خمي', 'جمع', 'سبت'];
+
 function startOfDay(d) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -39,13 +42,11 @@ function isInPeriod(dateStr, period, customFrom, customTo) {
   if (period === 'all') return true;
   if (period === 'custom') {
     if (!customFrom || !customTo) return true;
-    const from = new Date(customFrom + 'T00:00:00');
-    const to = new Date(customTo + 'T23:59:59');
+    const from = new Date(`${customFrom}T00:00:00`);
+    const to = new Date(`${customTo}T23:59:59`);
     return d >= from && d <= to;
   }
-  if (period === 'today') {
-    return startOfDay(d).getTime() === today.getTime();
-  }
+  if (period === 'today') return startOfDay(d).getTime() === today.getTime();
   if (period === 'week') {
     const start = new Date(today);
     const day = start.getDay();
@@ -61,10 +62,76 @@ function isInPeriod(dateStr, period, customFrom, customTo) {
   return true;
 }
 
+/** عدّاد تصاعدي بسيط عند تغيّر القيمة */
+function useCountUp(target, duration = 700) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    const end = Number(target) || 0;
+    if (end === 0) {
+      setValue(0);
+      return undefined;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const from = 0;
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - (1 - t) ** 3;
+      setValue(Math.round(from + (end - from) * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return value;
+}
+
+function AnimatedNumber({ value, suffix = '' }) {
+  const n = useCountUp(value);
+  return (
+    <span className="kpi-count">
+      {n}
+      {suffix}
+    </span>
+  );
+}
+
+function buildLast7Days(tasks) {
+  const today = startOfToday();
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const iso = toLocalISO(d);
+    const completed = tasks.filter((t) => {
+      if (!t.completed) return false;
+      const raw = t.completedAt || t.completed_at;
+      if (!raw) return false;
+      const cd = new Date(raw);
+      if (Number.isNaN(cd.getTime())) return false;
+      return toLocalISO(cd) === iso;
+    }).length;
+    days.push({
+      iso,
+      label: DAY_SHORT[d.getDay()],
+      count: completed,
+      isToday: i === 0,
+    });
+  }
+  return days;
+}
+
 export default function KpiView({ tasks, workspaces }) {
   const [period, setPeriod] = useState('week');
   const [rangeFrom, setRangeFrom] = useState('');
   const [rangeTo, setRangeTo] = useState('');
+  const [barsReady, setBarsReady] = useState(false);
+
+  useEffect(() => {
+    setBarsReady(false);
+    const id = requestAnimationFrame(() => setBarsReady(true));
+    return () => cancelAnimationFrame(id);
+  }, [tasks, period, rangeFrom, rangeTo]);
 
   const spaceList = useMemo(() => {
     const list = Array.isArray(workspaces) && workspaces.length > 0 ? workspaces : DEFAULT_WORKSPACES;
@@ -90,14 +157,11 @@ export default function KpiView({ tasks, workspaces }) {
     );
     const createdInPeriod = tasks.filter((t) => isInPeriod(t.createdAt, period, rangeFrom, rangeTo));
     const pending = tasks.filter((t) => !t.completed);
-    const overdue = pending.filter(
-      (t) => t.dueDate && new Date(t.dueDate + 'T00:00:00') < startOfDay(new Date())
-    );
+    const overdue = pending.filter((t) => isTaskOverdue(t));
 
     const done = completedInPeriod.length;
     const scopeTotal = period === 'all' ? tasks.length : Math.max(createdInPeriod.length, done);
     const completionRate = scopeTotal > 0 ? Math.round((done / scopeTotal) * 100) : 0;
-
     const totalTimeSpentSeconds = tasks.reduce((sum, t) => sum + (t.timeSpentSeconds || 0), 0);
 
     return {
@@ -111,14 +175,23 @@ export default function KpiView({ tasks, workspaces }) {
     };
   }, [tasks, period, rangeFrom, rangeTo]);
 
+  const trend7 = useMemo(() => buildLast7Days(tasks), [tasks]);
+  const trendMax = Math.max(1, ...trend7.map((d) => d.count));
+
   const periodLabel = PERIODS.find((p) => p.id === period)?.label || '';
 
+  const timeLabel = (() => {
+    const h = Math.floor(stats.totalTimeSpentSeconds / 3600);
+    const m = Math.floor((stats.totalTimeSpentSeconds % 3600) / 60);
+    return h > 0 ? `${h}س ${m}د` : `${m}د`;
+  })();
+
   return (
-    <div>
-      <div className="page-header" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+    <div className="kpi-view">
+      <div className="page-header kpi-header">
         <div>
           <div className="page-title">التقارير والإحصائيات</div>
-          <div className="page-desc">لوحة تحليل الأداء — الفترة الحالية: {periodLabel}</div>
+          <div className="page-desc">لوحة تحليل — الفترة: {periodLabel}</div>
         </div>
         <div className="period-tabs">
           {PERIODS.map((p) => (
@@ -151,57 +224,30 @@ export default function KpiView({ tasks, workspaces }) {
         )}
       </div>
 
-      <div className="stats-grid">
-        <div className="card stat-item">
-          <div className="stat-icon" style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}>
-            <i className="ph ph-list-bullets"></i>
-          </div>
-          <div>
-            <div className="stat-label">مهام الفترة ({periodLabel})</div>
-            <div className="stat-value">{stats.total}</div>
-          </div>
+      <div className="matrix-stats kpi-stats">
+        <div className="matrix-stat">
+          <span className="matrix-stat-value">
+            <AnimatedNumber value={stats.total} />
+          </span>
+          <span className="matrix-stat-label">مهام الفترة</span>
         </div>
-        <div className="card stat-item">
-          <div className="stat-icon" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
-            <i className="ph ph-check-circle"></i>
-          </div>
-          <div>
-            <div className="stat-label">منجز خلال الفترة</div>
-            <div className="stat-value">{stats.done}</div>
-          </div>
+        <div className="matrix-stat">
+          <span className="matrix-stat-value">
+            <AnimatedNumber value={stats.done} />
+          </span>
+          <span className="matrix-stat-label">منجز في الفترة</span>
         </div>
-        <div className="card stat-item">
-          <div className="stat-icon" style={{ background: 'var(--warning-light)', color: 'var(--warning)' }}>
-            <i className="ph ph-hourglass"></i>
-          </div>
-          <div>
-            <div className="stat-label">معلقة حالياً</div>
-            <div className="stat-value">{stats.pending}</div>
-          </div>
+        <div className="matrix-stat">
+          <span className="matrix-stat-value">
+            <AnimatedNumber value={stats.pending} />
+          </span>
+          <span className="matrix-stat-label">معلقة الآن</span>
         </div>
-        <div className="card stat-item">
-          <div className="stat-icon" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
-            <i className="ph ph-warning"></i>
-          </div>
-          <div>
-            <div className="stat-label">متأخرة</div>
-            <div className="stat-value">{stats.overdue}</div>
-          </div>
-        </div>
-        <div className="card stat-item">
-          <div className="stat-icon" style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}>
-            <i className="ph ph-hourglass-medium"></i>
-          </div>
-          <div>
-            <div className="stat-label">إجمالي الوقت المصروف (كل الوقت)</div>
-            <div className="stat-value">
-              {(() => {
-                const h = Math.floor(stats.totalTimeSpentSeconds / 3600);
-                const m = Math.floor((stats.totalTimeSpentSeconds % 3600) / 60);
-                return h > 0 ? `${h}س ${m}د` : `${m}د`;
-              })()}
-            </div>
-          </div>
+        <div className={`matrix-stat ${stats.overdue ? 'is-warn' : ''}`}>
+          <span className="matrix-stat-value">
+            <AnimatedNumber value={stats.overdue} />
+          </span>
+          <span className="matrix-stat-label">متأخرة</span>
         </div>
       </div>
 
@@ -220,21 +266,50 @@ export default function KpiView({ tasks, workspaces }) {
                 strokeWidth="10"
                 strokeLinecap="round"
                 strokeDasharray={`${2 * Math.PI * 58}`}
-                strokeDashoffset={`${2 * Math.PI * 58 * (1 - stats.completionRate / 100)}`}
+                strokeDashoffset={`${2 * Math.PI * 58 * (1 - (barsReady ? stats.completionRate : 0) / 100)}`}
                 transform="rotate(-90 70 70)"
-                style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+                className="kpi-ring-progress"
               />
             </svg>
             <div className="kpi-ring-label">
-              <span className="kpi-ring-value">{stats.completionRate}%</span>
+              <span className="kpi-ring-value">
+                <AnimatedNumber value={stats.completionRate} suffix="%" />
+              </span>
               <span className="kpi-ring-sub">منجز</span>
             </div>
           </div>
+          <p className="kpi-time-hint">
+            <i className="ph ph-hourglass-medium" /> الوقت المصروف الإجمالي: {timeLabel}
+          </p>
         </div>
 
-        <div className="card" style={{ flex: 1 }}>
+        <div className="card kpi-trend-card">
+          <h3 className="kpi-section-title">اتجاه الإنجاز — آخر 7 أيام</h3>
+          <div className="kpi-trend-chart" role="img" aria-label="إنجاز المهام في آخر سبعة أيام">
+            {trend7.map((d) => {
+              const h = barsReady ? Math.max(d.count > 0 ? 12 : 4, (d.count / trendMax) * 100) : 4;
+              return (
+                <div key={d.iso} className={`kpi-trend-col ${d.isToday ? 'is-today' : ''}`}>
+                  <span className="kpi-trend-count">{d.count}</span>
+                  <div className="kpi-trend-bar-track">
+                    <div
+                      className="kpi-trend-bar"
+                      style={{ height: `${h}%` }}
+                      title={`${d.label}: ${d.count}`}
+                    />
+                  </div>
+                  <span className="kpi-trend-label">{d.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="kpi-split">
+        <div className="card">
           <h3 className="kpi-section-title">التوزيع حسب الأولوية</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div className="kpi-dist-list">
             {QUADRANTS.map((q) => {
               const qTasks = tasks.filter((t) => t.quadrant === q).length;
               const qDone = tasks.filter((t) => t.quadrant === q && t.completed).length;
@@ -243,14 +318,59 @@ export default function KpiView({ tasks, workspaces }) {
                 <div key={q}>
                   <div className="dist-row">
                     <span>{Q_NAMES[q]}</span>
-                    <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>
+                    <span className="dist-meta">
                       {qDone}/{qTasks}
                     </span>
                   </div>
                   <div className="dist-bar-bg">
                     <div
-                      className="dist-bar-fill"
-                      style={{ width: `${qPercent}%`, background: Q_COLORS[q] }}
+                      className="dist-bar-fill kpi-bar-anim"
+                      style={{
+                        width: barsReady ? `${qPercent}%` : '0%',
+                        background: Q_COLORS[q],
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="card">
+          <h3 className="kpi-section-title">التوزيع حسب المساحة</h3>
+          <div className="kpi-dist-list">
+            {spaceList.map((ctx) => {
+              const cTasks = tasks.filter((t) => normalizeTaskContext(t.context) === ctx.id).length;
+              const cDone = tasks.filter(
+                (t) => normalizeTaskContext(t.context) === ctx.id && t.completed
+              ).length;
+              const cPercent = tasks.length > 0 ? (cTasks / tasks.length) * 100 : 0;
+              if (cTasks === 0 && spaceList.length > 8) return null;
+              const isTrelloSpace = ctx.id === TRELLO_WORKSPACE_ID;
+              return (
+                <div key={ctx.id}>
+                  <div className="dist-row">
+                    <span className="dist-space-label">
+                      <i className={`ph ${ctx.icon}`} style={{ color: ctx.color }} />
+                      {ctx.label}
+                      {isTrelloSpace && (
+                        <span className="kpi-trello-managed-badge" title="تُدار تلقائياً من تريلو">
+                          تريلو
+                        </span>
+                      )}
+                    </span>
+                    <span className="dist-meta">
+                      {cDone}/{cTasks}
+                    </span>
+                  </div>
+                  <div className="dist-bar-bg">
+                    <div
+                      className="dist-bar-fill kpi-bar-anim"
+                      style={{
+                        width: barsReady ? `${cPercent}%` : '0%',
+                        background: ctx.color,
+                      }}
                     />
                   </div>
                 </div>
@@ -260,51 +380,14 @@ export default function KpiView({ tasks, workspaces }) {
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 20 }}>
-        <h3 className="kpi-section-title">التوزيع حسب المساحة</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {spaceList.map((ctx) => {
-            const cTasks = tasks.filter(
-              (t) => normalizeTaskContext(t.context) === ctx.id
-            ).length;
-            const cDone = tasks.filter(
-              (t) => normalizeTaskContext(t.context) === ctx.id && t.completed
-            ).length;
-            const cPercent = tasks.length > 0 ? (cTasks / tasks.length) * 100 : 0;
-            if (cTasks === 0 && spaceList.length > 8) return null;
-            const isTrelloSpace = ctx.id === TRELLO_WORKSPACE_ID;
-            return (
-              <div key={ctx.id}>
-                <div className="dist-row">
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <i className={`ph ${ctx.icon}`} style={{ color: ctx.color }}></i>
-                    {ctx.label}
-                    {isTrelloSpace && (
-                      <span className="kpi-trello-managed-badge" title="تُدار تلقائياً من تريلو">
-                        تريلو
-                      </span>
-                    )}
-                  </span>
-                  <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>
-                    {cDone}/{cTasks}
-                  </span>
-                </div>
-                <div className="dist-bar-bg">
-                  <div
-                    className="dist-bar-fill"
-                    style={{ width: `${cPercent}%`, background: ctx.color }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="card" style={{ marginTop: 24 }}>
+      <div className="card" style={{ marginTop: 16 }}>
         <h3 className="kpi-section-title">آخر المهام المنجزة في الفترة</h3>
         {stats.completedInPeriod.length === 0 ? (
-          <div className="empty-state" style={{ padding: 32 }}>لا توجد مهام منجزة في هذه الفترة</div>
+          <div className="matrix-empty" style={{ padding: 28 }}>
+            <i className="ph ph-chart-line-up" />
+            <p>لا منجزات في هذه الفترة</p>
+            <span>غيّر الفترة أو أنجز مهمة لتظهر هنا</span>
+          </div>
         ) : (
           <div className="kpi-recent-list">
             {stats.completedInPeriod
@@ -313,7 +396,7 @@ export default function KpiView({ tasks, workspaces }) {
               .slice(0, 8)
               .map((t) => (
                 <div key={t.id} className="kpi-recent-item">
-                  <i className="ph ph-check-circle" style={{ color: 'var(--success)' }}></i>
+                  <i className="ph ph-check-circle" style={{ color: 'var(--success)' }} />
                   <span className="kpi-recent-title">{t.title}</span>
                   <span className="kpi-recent-meta">{Q_NAMES[t.quadrant]}</span>
                 </div>
