@@ -80,6 +80,7 @@ export default function QuadrantBoard({
   onReorderInQuadrant,
   onAddTask,
   workDays,
+  workspaces = null,
 }) {
   const [collapsed, setCollapsed] = useState({});
   const [dragOverZone, setDragOverZone] = useState(null);
@@ -241,6 +242,7 @@ export default function QuadrantBoard({
                           onEdit={onEdit}
                           onDelete={onDelete}
                           workDays={workDays}
+                          workspaces={workspaces}
                         />
                       </div>
                     ))
