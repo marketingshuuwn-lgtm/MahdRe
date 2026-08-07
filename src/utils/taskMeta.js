@@ -17,11 +17,23 @@ export const ALL_WORKSPACES_ID = '__all__';
 /** مساحة مهام تريلو الافتراضية */
 export const TRELLO_WORKSPACE_ID = 'alama';
 
-/** المساحات الافتراضية — يمكن للمستخدم إضافة مساحات أخرى محلياً */
+/**
+ * تسميات معروفة — لا تُفرض على مساحات المستخدم إن وُجدت تسمية محفوظة.
+ * تُستخدم فقط عند إنشاء صف افتراضي ناقص أو استعادة من context المهام.
+ */
+export const WORKSPACE_LABEL_HINTS = {
+  work: 'مشاريعي',
+  personal: 'شخصي',
+  [TRELLO_WORKSPACE_ID]: 'علامة',
+  trello: 'تريلو',
+  alama: 'علامة',
+};
+
+/** المساحات الافتراضية في التثبيت النظيف فقط */
 export const DEFAULT_WORKSPACES = [
   {
     id: 'work',
-    label: 'عمل',
+    label: WORKSPACE_LABEL_HINTS.work,
     icon: 'ph-briefcase',
     color: 'var(--accent)',
     bg: 'var(--accent-light)',
@@ -29,7 +41,7 @@ export const DEFAULT_WORKSPACES = [
   },
   {
     id: 'personal',
-    label: 'شخصي',
+    label: WORKSPACE_LABEL_HINTS.personal,
     icon: 'ph-house-line',
     color: 'var(--success)',
     bg: 'var(--success-light)',
@@ -37,7 +49,7 @@ export const DEFAULT_WORKSPACES = [
   },
   {
     id: TRELLO_WORKSPACE_ID,
-    label: 'علامة',
+    label: WORKSPACE_LABEL_HINTS[TRELLO_WORKSPACE_ID],
     icon: 'ph-kanban',
     color: '#0079bf',
     bg: 'rgba(0, 121, 191, 0.12)',
@@ -103,12 +115,16 @@ export function getTaskContextMeta(context, workspaces = null) {
   const list = Array.isArray(workspaces) && workspaces.length > 0 ? workspaces : DEFAULT_WORKSPACES;
   const found = list.find((item) => item.id === id);
   if (found) return found;
+  const hint = WORKSPACE_LABEL_HINTS[id];
   return {
     id,
-    label: id,
-    icon: 'ph-folder',
-    color: 'var(--accent)',
-    bg: 'var(--accent-light)',
+    label: hint || id,
+    icon: id === TRELLO_WORKSPACE_ID || id === 'trello' ? 'ph-kanban' : 'ph-folder',
+    color: id === TRELLO_WORKSPACE_ID || id === 'trello' ? '#0079bf' : 'var(--accent)',
+    bg:
+      id === TRELLO_WORKSPACE_ID || id === 'trello'
+        ? 'rgba(0, 121, 191, 0.12)'
+        : 'var(--accent-light)',
   };
 }
 
@@ -120,4 +136,23 @@ export function slugifyWorkspaceName(name) {
     .replace(/[^\w\u0600-\u06FF-]/g, '')
     .slice(0, 40);
   return base || `ws-${Date.now().toString(36)}`;
+}
+
+/** يبني مساحة من معرف context إن لم تكن في القائمة */
+export function workspaceFromContextId(id, index = 0) {
+  const nid = normalizeTaskContext(id);
+  const def = DEFAULT_WORKSPACES.find((w) => w.id === nid);
+  if (def) return { ...def, archived: false, trait: def.trait || '' };
+  const palette = WORKSPACE_COLORS[index % WORKSPACE_COLORS.length];
+  const isTrello = nid === 'trello' || nid === TRELLO_WORKSPACE_ID;
+  return {
+    id: nid,
+    label: WORKSPACE_LABEL_HINTS[nid] || nid,
+    icon: isTrello ? 'ph-kanban' : WORKSPACE_ICONS[index % WORKSPACE_ICONS.length],
+    color: isTrello ? '#0079bf' : palette.color,
+    bg: isTrello ? 'rgba(0, 121, 191, 0.12)' : palette.bg,
+    isDefault: false,
+    archived: false,
+    trait: isTrello ? 'مهام تريلو' : '',
+  };
 }

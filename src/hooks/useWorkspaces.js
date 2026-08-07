@@ -3,27 +3,60 @@ import {
   DEFAULT_WORKSPACES,
   WORKSPACE_COLORS,
   WORKSPACE_ICONS,
+  WORKSPACE_LABEL_HINTS,
   ALL_WORKSPACES_ID,
   normalizeTaskContext,
   slugifyWorkspaceName,
+  workspaceFromContextId,
 } from '../utils/taskMeta';
 
 const WORKSPACES_KEY = 'mahd_workspaces_v1';
 const ACTIVE_KEY = 'mahd_active_workspace_v1';
 
+/** لا تستبدل تسمية المستخدم بتسمية البذرة */
+function mergeDefaultsPreserveLabels(list) {
+  const byId = new Map(list.map((w) => [w.id, w]));
+  for (const def of DEFAULT_WORKSPACES) {
+    if (!byId.has(def.id)) {
+      byId.set(def.id, {
+        ...def,
+        label: WORKSPACE_LABEL_HINTS[def.id] || def.label,
+        archived: false,
+        trait: def.trait || '',
+      });
+    }
+  }
+  // إن وُجدت مساحة id=work وما زال اسمها القديم «عمل» نحدّث التلميح مرة واحدة فقط إن طابق البذرة القديمة
+  const work = byId.get('work');
+  if (work && (work.label === 'عمل' || work.label === 'work')) {
+    byId.set('work', { ...work, label: WORKSPACE_LABEL_HINTS.work });
+  }
+  return [...byId.values()];
+}
+
 function readWorkspaces() {
   try {
     const raw = localStorage.getItem(WORKSPACES_KEY);
-    if (!raw) return DEFAULT_WORKSPACES.map((w) => ({ ...w, archived: false, trait: w.trait || '' }));
+    if (!raw) {
+      return DEFAULT_WORKSPACES.map((w) => ({
+        ...w,
+        archived: false,
+        trait: w.trait || '',
+      }));
+    }
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) {
-      return DEFAULT_WORKSPACES.map((w) => ({ ...w, archived: false, trait: '' }));
+      return DEFAULT_WORKSPACES.map((w) => ({
+        ...w,
+        archived: false,
+        trait: w.trait || '',
+      }));
     }
     const cleaned = parsed
       .filter((w) => w && typeof w.id === 'string' && w.id.trim() && w.id !== ALL_WORKSPACES_ID)
       .map((w) => ({
         id: normalizeTaskContext(w.id),
-        label: String(w.label || w.id).trim() || w.id,
+        label: String(w.label || WORKSPACE_LABEL_HINTS[w.id] || w.id).trim() || w.id,
         icon: w.icon || 'ph-folder',
         color: w.color || 'var(--accent)',
         bg: w.bg || 'var(--accent-light)',
@@ -31,13 +64,13 @@ function readWorkspaces() {
         archived: Boolean(w.archived),
         trait: typeof w.trait === 'string' ? w.trait : '',
       }));
-    const ids = new Set(cleaned.map((w) => w.id));
-    for (const def of DEFAULT_WORKSPACES) {
-      if (!ids.has(def.id)) cleaned.unshift({ ...def, archived: false, trait: '' });
-    }
-    return cleaned;
+    return mergeDefaultsPreserveLabels(cleaned);
   } catch {
-    return DEFAULT_WORKSPACES.map((w) => ({ ...w, archived: false, trait: '' }));
+    return DEFAULT_WORKSPACES.map((w) => ({
+      ...w,
+      archived: false,
+      trait: w.trait || '',
+    }));
   }
 }
 
@@ -106,6 +139,26 @@ export function useWorkspaces() {
   const writeContextId = isAllMode
     ? visibleWorkspaces[0]?.id || 'work'
     : activeWorkspaceId;
+
+  /**
+   * يستعيد مساحات اختفت من الشريط إن وُجدت كمهام بـ context غير معروف.
+   * لا يغيّر تسميات المساحات الموجودة.
+   */
+  const ensureContextsFromTasks = useCallback((contextIds) => {
+    if (!Array.isArray(contextIds) || contextIds.length === 0) return;
+    const unique = [
+      ...new Set(contextIds.map((c) => normalizeTaskContext(c)).filter(Boolean)),
+    ];
+    setWorkspaces((prev) => {
+      const ids = new Set(prev.map((w) => w.id));
+      const missing = unique.filter((id) => !ids.has(id));
+      if (missing.length === 0) return prev;
+      const additions = missing.map((id, i) =>
+        workspaceFromContextId(id, prev.length + i)
+      );
+      return mergeDefaultsPreserveLabels([...prev, ...additions]);
+    });
+  }, []);
 
   const addWorkspace = useCallback(({ name, icon, colorIndex, trait }) => {
     const label = String(name || '').trim();
@@ -199,5 +252,6 @@ export function useWorkspaces() {
     archiveWorkspace,
     restoreWorkspace,
     reorderWorkspaces,
+    ensureContextsFromTasks,
   };
 }
