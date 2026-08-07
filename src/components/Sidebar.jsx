@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 
-/** ترتيب: مهام → معلقة → تقارير → استراحة → مفكرة → أرشيف → إعدادات (تريلو داخل الإعدادات) */
+/** ترتيب: مهام → معلقة → تقارير → استراحة → مفكرة → أرشيف → إعدادات */
 const NAV_ITEMS = [
-  { id: 'Matrix', label: 'المهام', icon: 'ph-squares-four' },
-  { id: 'Pending', label: 'المعلقة', icon: 'ph-hourglass' },
-  { id: 'Kpi', label: 'التقارير', icon: 'ph-chart-bar' },
-  { id: 'Motivation', label: 'استراحة', icon: 'ph-coffee', hint: 'Alt+G' },
-  { id: 'Notepad', label: 'المفكرة', icon: 'ph-notebook' },
-  { id: 'Archive', label: 'الأرشيف', icon: 'ph-archive' },
-  { id: 'Settings', label: 'الإعدادات', icon: 'ph-gear-six' },
+  { id: 'Matrix', label: 'المهام', icon: 'ph-squares-four', hint: 'Alt+1' },
+  { id: 'Pending', label: 'المعلقة', icon: 'ph-hourglass', hint: 'Alt+2' },
+  { id: 'Kpi', label: 'التقارير', icon: 'ph-chart-bar', hint: 'Alt+3' },
+  { id: 'Motivation', label: 'استراحة', icon: 'ph-coffee', hint: 'Alt+4 / Alt+G' },
+  { id: 'Notepad', label: 'المفكرة', icon: 'ph-notebook', hint: 'Alt+5' },
+  { id: 'Archive', label: 'الأرشيف', icon: 'ph-archive', hint: 'Alt+6' },
+  { id: 'Settings', label: 'الإعدادات', icon: 'ph-gear-six', hint: 'Alt+7' },
 ];
 
 export default function Sidebar({
