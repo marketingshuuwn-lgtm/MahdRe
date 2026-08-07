@@ -70,6 +70,7 @@ export default function PendingView({
   onDelete,
   onAddTask,
   workDays,
+  workspaces = null,
 }) {
   const [qFilter, setQFilter] = useState('all');
   const [dFilter, setDFilter] = useState('all');
@@ -223,6 +224,7 @@ export default function PendingView({
                     onDelete={onDelete}
                     draggable={false}
                     workDays={workDays}
+                    workspaces={workspaces}
                   />
                 ))}
               </div>

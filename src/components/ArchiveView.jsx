@@ -31,6 +31,7 @@ export default function ArchiveView({
   onEdit,
   workDays,
   workspaceLabel,
+  workspaces = null,
 }) {
   const groups = useMemo(() => {
     const today = startOfToday();
@@ -92,6 +93,7 @@ export default function ArchiveView({
                     onEdit={onEdit}
                     draggable={false}
                     workDays={workDays}
+                    workspaces={workspaces}
                   />
                 ))}
               </div>
