@@ -1,0 +1,121 @@
+/* طبقات أفعال صف المهمة */
+.task-row-daily {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.task-row-defer {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--surface, transparent);
+  color: var(--text-secondary);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.task-row-defer:hover {
+  color: var(--warning);
+  border-color: var(--warning);
+  background: var(--warning-light, rgba(245, 158, 11, 0.1));
+}
+
+.task-row-defer .ph {
+  font-size: 16px;
+}
+
+.task-draft-dot {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-end: 6px;
+  vertical-align: middle;
+}
+
+.task-draft-dot-inner {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #eab308;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #eab308 25%, transparent);
+}
+
+.task-row-chip.draft-chip {
+  color: #a16207;
+  background: rgba(234, 179, 8, 0.14);
+}
+
+.task-row-chip.overdue-chip {
+  color: var(--danger);
+  background: var(--danger-light, rgba(239, 68, 68, 0.12));
+  font-weight: 600;
+}
+
+.task-row-manage {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+}
+
+.task-row-menu-wrap {
+  position: relative;
+}
+
+.task-row-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 40;
+  min-width: 180px;
+  margin-top: 4px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg, var(--surface, #fff));
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+[data-theme='dark'] .task-row-menu {
+  background: var(--card-bg, #1c1c1e);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.task-row-menu button,
+.task-row-menu-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--fs-sm, 13px);
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: start;
+  text-decoration: none;
+}
+
+.task-row-menu button:hover,
+.task-row-menu-link:hover {
+  background: var(--accent-light, rgba(0, 0, 0, 0.05));
+}
+
+.task-row-menu button.is-danger {
+  color: var(--danger);
+}
+
+.task-row.has-draft .task-row-title {
+  font-weight: 600;
+}
