@@ -15,6 +15,7 @@ import NotepadView from './components/NotepadView';
 import TaskModal from './components/TaskModal';
 import NotesModal from './components/NotesModal';
 import ShortcutsHelp from './components/ShortcutsHelp';
+import LoadingSkeleton from './components/LoadingSkeleton';
 import ViewSwitcher from './components/ViewSwitcher';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import { useTasks } from './hooks/useTasks';
@@ -153,7 +154,6 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e) => {
-      // Esc: أغلق الطبقات من الأعمق
       if (e.key === 'Escape') {
         if (shortcutsOpen) {
           e.preventDefault();
@@ -177,7 +177,6 @@ export default function App() {
         return;
       }
 
-      // ؟ أو / — مساعدة الاختصارات (خارج حقول الكتابة)
       if (!e.altKey && !e.ctrlKey && !e.metaKey && (e.key === '?' || e.key === '/')) {
         if (isTypingTarget(e.target)) return;
         e.preventDefault();
@@ -192,7 +191,7 @@ export default function App() {
 
       if (k === 'g' || k === 'G' || k === '4') {
         e.preventDefault();
-        setView(k === '4' ? 'Motivation' : 'Motivation');
+        setView('Motivation');
         setSidebarOpen(false);
         return;
       }
@@ -374,10 +373,11 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="full-center">
-        <div className="loading-spinner" />
-        <p style={{ color: 'var(--text-secondary)' }}>جاري تحميل المهام…</p>
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}} .loading-spinner{width:48px;height:48px;border:4px solid var(--border-color);border-top-color:var(--accent);border-radius:50%;animation:spin .75s linear infinite;margin:0 auto 16px}`}</style>
+      <div className="full-center" style={{ padding: 24 }}>
+        <LoadingSkeleton />
+        <p style={{ color: 'var(--text-secondary)', marginTop: 12, textAlign: 'center' }}>
+          جاري تحميل المهام…
+        </p>
       </div>
     );
   }
@@ -459,6 +459,7 @@ export default function App() {
                 onDelete={archiveTask}
                 onMoveTask={moveTask}
                 onReorderInQuadrant={reorderInQuadrant}
+                onAddTask={openAddModal}
                 workDays={workDays}
               />
             )}
@@ -494,6 +495,7 @@ export default function App() {
             onToggleSubtask={toggleSubtask}
             onEdit={openEditModal}
             onDelete={archiveTask}
+            onAddTask={openAddModal}
             workDays={workDays}
             workspaces={visibleWorkspaces}
           />
