@@ -1,33 +1,8 @@
 /**
- * نظام بصري موحّد لمهد — بدون قيد أبعاد ثابتة
- * يُحمَّل آخراً لضبط التخطيط، الأزرار، الشريط، والتنقل
+ * Utilities: focus, controls, workspace chips, floating timer.
+ * No color tokens (see tokens.css). No matrix grid. No old .sidebar layout.
  */
 
-/* ─── Design tokens ─── */
-:root {
-  --sidebar-w: 252px;
-  --sidebar-compact-w: 76px;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --radius-sm: 12px;
-  --radius-md: 16px;
-  --radius-lg: 20px;
-  --radius-xl: 26px;
-  --radius-pill: 999px;
-  --page-pad-x: clamp(16px, 2vw, 36px);
-  --page-pad-y: clamp(14px, 1.6vh, 28px);
-  --page-pad-bottom: 112px;
-  --control-h: 40px;
-  --focus-ring: 0 0 0 3px var(--accent-light);
-  --ease: 0.18s ease;
-}
-
-/* ─── Base ─── */
 html {
   scroll-behavior: smooth;
 }
@@ -43,7 +18,8 @@ button,
 .filter-chip,
 .view-tab,
 .workspace-tab,
-.data-btn {
+.data-btn,
+.rail-btn {
   transition: background var(--ease), color var(--ease), border-color var(--ease),
     box-shadow var(--ease), opacity var(--ease), transform var(--ease);
 }
@@ -53,12 +29,12 @@ button:focus-visible,
 .btn-icon:focus-visible,
 .form-input:focus-visible,
 .view-tab:focus-visible,
-.workspace-tab:focus-visible {
+.workspace-tab:focus-visible,
+.rail-btn:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
 
-/* ─── App shell ─── */
 .app-container {
   display: flex;
   min-height: 100vh;
@@ -76,124 +52,12 @@ button:focus-visible,
   padding: var(--page-pad-y) var(--page-pad-x) var(--page-pad-bottom);
 }
 
-/* ─── Sidebar ─── */
-.sidebar {
-  width: var(--sidebar-w);
-  padding: var(--space-5) var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  overflow: hidden;
-}
-
-.sidebar.compact {
-  width: var(--sidebar-compact-w);
-  padding: var(--space-4) var(--space-2);
-}
-
-.sidebar nav {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-inline-end: 2px;
-  margin-bottom: var(--space-3);
-  scrollbar-width: thin;
-}
-
-.logo-area {
-  margin-bottom: var(--space-5);
-  flex-shrink: 0;
-}
-
-.logo-icon {
-  width: 40px;
-  height: 40px;
-}
-
-.logo-text {
-  font-size: var(--fs-xl);
-}
-
-.nav-item {
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  margin-bottom: 2px;
-  font-size: var(--fs-sm);
-  gap: 10px;
-  min-height: 42px;
-}
-
-.nav-item i {
-  font-size: 20px;
-  width: 22px;
-  text-align: center;
-}
-
-.nav-label {
-  flex: 1;
-  text-align: right;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nav-badge {
-  position: static;
-  transform: none;
-  margin-inline-start: auto;
-  flex-shrink: 0;
-}
-
-.sidebar.compact .nav-item {
-  justify-content: center;
-  padding: 12px;
-}
-
-.sidebar.compact .nav-badge {
-  position: absolute;
-  left: auto;
-  right: 4px;
-  top: 4px;
-  margin: 0;
-}
-
-.sidebar-footer {
-  flex-shrink: 0;
-  margin-top: 0;
-  padding-top: var(--space-3);
-}
-
-.theme-toggle-btn {
-  min-height: var(--control-h);
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  font-size: var(--fs-sm);
-}
-
-.data-btn {
-  min-height: 36px;
-  padding: 8px;
-  border-radius: var(--radius-sm);
-  font-size: var(--fs-xs);
-}
-
-/* ─── Buttons unified ─── */
 .btn-primary,
 .btn-secondary {
   min-height: var(--control-h);
   padding: 10px 18px;
   border-radius: var(--radius-md);
   font-size: var(--fs-sm);
-}
-
-.btn-primary:hover {
-  filter: brightness(1.05);
-}
-
-.btn-secondary:hover {
-  background: var(--border-color);
 }
 
 .btn-icon {
@@ -214,12 +78,6 @@ button:focus-visible,
   flex-shrink: 0;
 }
 
-/* ─── Cards & page ─── */
-.card {
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-}
-
 .page-header {
   margin-bottom: var(--space-5);
 }
@@ -235,7 +93,6 @@ button:focus-visible,
   margin-top: var(--space-1);
 }
 
-/* ─── Matrix / views ─── */
 .matrix-topbar {
   margin-bottom: var(--space-4);
 }
@@ -252,39 +109,6 @@ button:focus-visible,
   font-size: var(--fs-sm);
 }
 
-.matrix-grid {
-  gap: var(--space-5);
-}
-
-.quadrant-card:not(.collapsed) {
-  min-height: 140px;
-}
-
-.quadrant-inner {
-  padding: var(--space-3) var(--space-4) var(--space-4);
-}
-
-.drop-zone {
-  min-height: 180px;
-  max-height: calc(100vh - 260px);
-}
-
-.task-item {
-  padding: 12px;
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-2);
-  gap: 10px;
-  align-items: flex-start;
-}
-
-.task-title {
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-bold);
-  min-width: 0;
-  line-height: 1.35;
-}
-
-/* ─── Workspace strip ─── */
 .workspace-switcher {
   margin-bottom: var(--space-4);
 }
@@ -304,7 +128,6 @@ button:focus-visible,
   font-size: 15px;
 }
 
-/* ─── Floating bars — avoid overlap ─── */
 .floating-smart-bar {
   bottom: 16px;
   width: min(620px, calc(100vw - 28px));
@@ -357,7 +180,6 @@ button:focus-visible,
   flex-shrink: 0;
 }
 
-/* ─── Forms ─── */
 .form-input {
   min-height: var(--control-h);
   padding: 10px 14px;
@@ -376,7 +198,6 @@ button:focus-visible,
   border-radius: var(--radius-pill);
 }
 
-/* ─── Modal ─── */
 .modal-box {
   border-radius: var(--radius-xl);
   padding: var(--space-5);
@@ -387,7 +208,6 @@ button:focus-visible,
   margin-top: var(--space-5);
 }
 
-/* ─── Responsive ─── */
 @media (max-width: 1100px) {
   .matrix-grid {
     grid-template-columns: 1fr;
@@ -395,9 +215,6 @@ button:focus-visible,
 }
 
 @media (max-width: 900px) {
-  .sidebar {
-    width: min(300px, 88vw) !important;
-  }
   .main-content {
     padding: 14px 12px 100px;
   }
