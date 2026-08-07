@@ -1,6 +1,12 @@
 import { useMemo, useState } from 'react';
-import TaskCard from './TaskCard';
-import { compareTasksBySchedule } from '../utils/dateUtils';
+import TaskRow from './TaskRow';
+import {
+  compareTasksBySchedule,
+  getOccurrenceDates,
+  isTaskOverdue,
+  startOfToday,
+  toLocalISO,
+} from '../utils/dateUtils';
 
 const QUADRANTS = [
   { id: 'important-urgent', title: 'مهم ومستعجل', color: 'var(--danger)' },
@@ -17,6 +23,50 @@ function parseDragId(raw) {
 
 function sortItems(items, workDays) {
   return [...items].sort((a, b) => compareTasksBySchedule(a, b, { workDays }));
+}
+
+function isActiveToday(task, workDays) {
+  if (task.completed) return false;
+  const today = startOfToday();
+  const iso = toLocalISO(today);
+  const occ = getOccurrenceDates(task, today, today, { workDays });
+  if (occ.includes(iso)) return true;
+  if (!task.dueDate && !task.recurrence) return false;
+  return false;
+}
+
+function completedOnDay(task, dayIso) {
+  if (!task.completed) return false;
+  const raw = task.completedAt || task.completed_at;
+  if (!raw) return true; // completed بدون طابع — نحسبها لليوم بحذر كأقل تقدير في العداد اللحظي فقط
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return false;
+  return toLocalISO(d) === dayIso;
+}
+
+function computeStreak(tasks) {
+  const days = new Set();
+  tasks.forEach((t) => {
+    if (!t.completed) return;
+    const raw = t.completedAt || t.completed_at;
+    if (!raw) return;
+    const d = new Date(raw);
+    if (!Number.isNaN(d.getTime())) days.add(toLocalISO(d));
+  });
+  if (days.size === 0) return 0;
+  let streak = 0;
+  const cursor = startOfToday();
+  // إن لم يُنجز شيء اليوم، ابدأ من أمس
+  if (!days.has(toLocalISO(cursor))) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  for (let i = 0; i < 365; i++) {
+    const iso = toLocalISO(cursor);
+    if (!days.has(iso)) break;
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
 }
 
 export default function QuadrantBoard({
@@ -37,9 +87,21 @@ export default function QuadrantBoard({
   const byQ = useMemo(() => {
     const map = {};
     QUADRANTS.forEach((q) => {
-      map[q.id] = sortItems(tasks.filter((t) => t.quadrant === q.id), workDays);
+      map[q.id] = sortItems(
+        tasks.filter((t) => t.quadrant === q.id),
+        workDays
+      );
     });
     return map;
+  }, [tasks, workDays]);
+
+  const stats = useMemo(() => {
+    const todayIso = toLocalISO(startOfToday());
+    const todayCount = tasks.filter((t) => isActiveToday(t, workDays)).length;
+    const completedToday = tasks.filter((t) => completedOnDay(t, todayIso)).length;
+    const overdue = tasks.filter((t) => isTaskOverdue(t)).length;
+    const streak = computeStreak(tasks);
+    return { todayCount, completedToday, overdue, streak };
   }, [tasks, workDays]);
 
   const toggleCollapse = (id) => setCollapsed((p) => ({ ...p, [id]: !p[id] }));
@@ -81,84 +143,108 @@ export default function QuadrantBoard({
   };
 
   return (
-    <div>
-      <div className="board-toolbar">
+    <div className="matrix-stack">
+      <div className="matrix-stats">
+        <div className="matrix-stat">
+          <span className="matrix-stat-value">{stats.todayCount}</span>
+          <span className="matrix-stat-label">مهام اليوم</span>
+        </div>
+        <div className="matrix-stat">
+          <span className="matrix-stat-value">{stats.completedToday}</span>
+          <span className="matrix-stat-label">مكتملة اليوم</span>
+        </div>
+        <div className={`matrix-stat ${stats.overdue ? 'is-warn' : ''}`}>
+          <span className="matrix-stat-value">{stats.overdue}</span>
+          <span className="matrix-stat-label">متأخرة</span>
+        </div>
+        <div className="matrix-stat">
+          <span className="matrix-stat-value">
+            {stats.streak > 0 ? `${stats.streak}` : '0'}
+            {stats.streak > 0 && <span className="matrix-stat-fire" aria-hidden>🔥</span>}
+          </span>
+          <span className="matrix-stat-label">سلسلة الإنجاز</span>
+        </div>
+      </div>
+
+      <div className="board-toolbar matrix-stack-toolbar">
         <button type="button" className="toolbar-btn" onClick={anyCollapsed ? expandAll : collapseAll}>
-          <i className={`ph ${anyCollapsed ? 'ph-arrows-out-simple' : 'ph-arrows-in-simple'}`}></i>
+          <i className={`ph ${anyCollapsed ? 'ph-arrows-out-simple' : 'ph-arrows-in-simple'}`} />
           {anyCollapsed ? 'توسيع الكل' : 'طي الكل'}
         </button>
       </div>
 
-      <div className="matrix-grid">
+      <div className="matrix-sections">
         {QUADRANTS.map((q) => {
           const items = byQ[q.id];
           const isCollapsed = !!collapsed[q.id];
 
           return (
-            <div key={q.id} className={`card quadrant-card ${isCollapsed ? 'collapsed' : ''}`}>
-              <div className="accent-bar" style={{ background: q.color }}></div>
-              <div className={`quadrant-inner ${isCollapsed ? 'inner-collapsed' : ''}`}>
-                <button
-                  type="button"
-                  className="quadrant-header-btn"
-                  onClick={() => toggleCollapse(q.id)}
-                >
-                  <span className="q-dot" style={{ background: q.color }}></span>
-                  <span className="q-title" style={{ color: q.color }}>
-                    {q.title}
-                  </span>
-                  <span className="q-count">{items.length}</span>
-                  <span className="collapse-indicator">
-                    <i className={`ph ${isCollapsed ? 'ph-caret-left' : 'ph-caret-down'}`}></i>
-                  </span>
-                </button>
+            <section
+              key={q.id}
+              className={`matrix-section ${isCollapsed ? 'is-collapsed' : ''} ${dragOverZone === q.id ? 'is-drag-over' : ''}`}
+              style={{ '--section-color': q.color }}
+            >
+              <button
+                type="button"
+                className="matrix-section-header"
+                onClick={() => toggleCollapse(q.id)}
+                aria-expanded={!isCollapsed}
+              >
+                <span className="matrix-section-edge" aria-hidden />
+                <span className="matrix-section-title">{q.title}</span>
+                <span className="matrix-section-count">{items.length}</span>
+                <i className={`ph ${isCollapsed ? 'ph-caret-left' : 'ph-caret-down'}`} />
+              </button>
 
-                {!isCollapsed && (
-                  <div
-                    className={`drop-zone ${dragOverZone === q.id ? 'drag-over' : ''}`}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = 'move';
-                      setDragOverZone(q.id);
-                    }}
-                    onDragLeave={(e) => {
-                      if (!e.currentTarget.contains(e.relatedTarget)) {
-                        setDragOverZone(null);
-                        setDragOverTaskId(null);
-                      }
-                    }}
-                    onDrop={(e) => handleDropOnZone(e, q.id)}
-                  >
-                    {items.length === 0 ? (
-                      <div className="empty-state">اسحب مهمة إلى هنا</div>
-                    ) : (
-                      items.map((task) => (
-                        <div
-                          key={task.id}
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setDragOverTaskId(task.id);
-                            setDragOverZone(q.id);
-                          }}
-                          className={dragOverTaskId === task.id ? 'task-drop-target' : ''}
-                        >
-                          <TaskCard
-                            task={task}
-                            onToggleComplete={onToggleComplete}
-                            onSetStatus={onSetStatus}
-                            onToggleSubtask={onToggleSubtask}
-                            onEdit={onEdit}
-                            onDelete={onDelete}
-                            workDays={workDays}
-                          />
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+              {!isCollapsed && (
+                <div
+                  className="matrix-section-body"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setDragOverZone(q.id);
+                  }}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget)) {
+                      setDragOverZone(null);
+                      setDragOverTaskId(null);
+                    }
+                  }}
+                  onDrop={(e) => handleDropOnZone(e, q.id)}
+                >
+                  {items.length === 0 ? (
+                    <div className="matrix-empty">
+                      <i className="ph ph-tray" />
+                      <p>لا مهام في هذا القسم</p>
+                      <span>اسحب مهمة إلى هنا أو أضف مهمة جديدة</span>
+                    </div>
+                  ) : (
+                    items.map((task) => (
+                      <div
+                        key={task.id}
+                        className={dragOverTaskId === task.id ? 'task-drop-target' : ''}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDragOverTaskId(task.id);
+                          setDragOverZone(q.id);
+                        }}
+                      >
+                        <TaskRow
+                          task={task}
+                          onToggleComplete={onToggleComplete}
+                          onSetStatus={onSetStatus}
+                          onToggleSubtask={onToggleSubtask}
+                          onEdit={onEdit}
+                          onDelete={onDelete}
+                          workDays={workDays}
+                        />
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </section>
           );
         })}
       </div>
