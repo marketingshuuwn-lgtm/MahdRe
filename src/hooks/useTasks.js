@@ -2,18 +2,20 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { normalizeSubtasks } from '../utils/subtasks';
 import { normalizeTaskContext } from '../utils/taskMeta';
+import { normalizeTaskStatus } from '../utils/taskStatus';
 
 const TABLE = 'tasks';
 
 function fromRow(row) {
+  const status = normalizeTaskStatus(row.status || (row.completed ? 'completed' : 'not_started'));
   return {
     id: row.id,
     title: row.title,
     quadrant: row.quadrant,
     context: normalizeTaskContext(row.context),
     subtasks: normalizeSubtasks(row.subtasks),
-    completed: row.completed,
-    status: row.status || (row.completed ? 'completed' : 'not_started'),
+    completed: status === 'completed' || Boolean(row.completed),
+    status,
     archived: Boolean(row.archived),
     archivedAt: row.archived_at ?? null,
     notes: row.notes ?? '',
@@ -101,8 +103,11 @@ export function useTasks(showToast) {
       const recurrenceDays = extra.recurrenceDays || [];
       const context = normalizeTaskContext(extra.context);
       const subtasks = normalizeSubtasks(extra.subtasks);
-      const status = extra.status || 'not_started';
+      let status = normalizeTaskStatus(extra.status || 'not_started');
+      if (status === 'cancelled') status = 'cancelled';
       const completed = status === 'completed';
+      const archived = status === 'cancelled';
+      const archivedAt = archived ? new Date().toISOString() : null;
       const optimisticTask = {
         id: tempId,
         title,
@@ -111,8 +116,8 @@ export function useTasks(showToast) {
         subtasks,
         status,
         completed,
-        archived: false,
-        archivedAt: null,
+        archived,
+        archivedAt,
         notes: notes || '',
         dueDate: dueDate || '',
         duration: duration || 1,
@@ -142,7 +147,8 @@ export function useTasks(showToast) {
         sort_order: 0,
         recurrence,
         recurrence_days: recurrence === 'weekly' ? recurrenceDays : null,
-        archived: false,
+        archived,
+        archived_at: archivedAt,
       };
 
       const { data, error } = await supabase.from(TABLE).insert(payload).select().single();
@@ -172,10 +178,19 @@ export function useTasks(showToast) {
         extra.context !== undefined ? extra.context : previous.context
       );
       const subtasks =
-        extra.subtasks !== undefined ? normalizeSubtasks(extra.subtasks) : normalizeSubtasks(previous.subtasks);
-      const status = extra.status !== undefined ? extra.status : (previous.status || 'not_started');
+        extra.subtasks !== undefined
+          ? normalizeSubtasks(extra.subtasks)
+          : normalizeSubtasks(previous.subtasks);
+      const status = normalizeTaskStatus(
+        extra.status !== undefined ? extra.status : previous.status || 'not_started'
+      );
       const completed = status === 'completed';
       const completedAt = completed ? previous.completedAt || new Date().toISOString() : null;
+      const shouldArchive = status === 'cancelled';
+      const archived = shouldArchive ? true : previous.archived;
+      const archivedAt = shouldArchive
+        ? previous.archivedAt || new Date().toISOString()
+        : previous.archivedAt;
 
       setTasks((prev) =>
         prev.map((t) =>
@@ -189,6 +204,8 @@ export function useTasks(showToast) {
                 status,
                 completed,
                 completedAt,
+                archived,
+                archivedAt,
                 dueDate: dueDate || '',
                 notes: notes || '',
                 duration: duration || 1,
@@ -199,23 +216,26 @@ export function useTasks(showToast) {
         )
       );
 
-      const { error } = await supabase
-        .from(TABLE)
-        .update({
-          title,
-          quadrant,
-          context,
-          subtasks,
-          status,
-          completed,
-          completed_at: completedAt,
-          due_date: dueDate || null,
-          notes: notes || '',
-          duration: duration || 1,
-          recurrence: recurrence || null,
-          recurrence_days: recurrence === 'weekly' ? recurrenceDays : null,
-        })
-        .eq('id', id);
+      const patch = {
+        title,
+        quadrant,
+        context,
+        subtasks,
+        status,
+        completed,
+        completed_at: completedAt,
+        due_date: dueDate || null,
+        notes: notes || '',
+        duration: duration || 1,
+        recurrence: recurrence || null,
+        recurrence_days: recurrence === 'weekly' ? recurrenceDays : null,
+      };
+      if (shouldArchive) {
+        patch.archived = true;
+        patch.archived_at = archivedAt;
+      }
+
+      const { error } = await supabase.from(TABLE).update(patch).eq('id', id);
 
       if (error) {
         console.error(error);
@@ -224,7 +244,11 @@ export function useTasks(showToast) {
         return;
       }
 
-      showToast?.(`تم تعديل "${title}"`, 'ph-pencil-simple');
+      if (shouldArchive) {
+        showToast?.(`أُلغيت وأُرشفت "${title}"`, 'ph-x-circle');
+      } else {
+        showToast?.(`تم تعديل "${title}"`, 'ph-pencil-simple');
+      }
     },
     [tasks, showToast]
   );
@@ -292,13 +316,33 @@ export function useTasks(showToast) {
       const task = tasks.find((t) => t.id === id);
       if (!task || !task.archived) return;
 
+      // الاسترجاع يلغي الإلغاء ويعيد لم تبدأ
+      const nextStatus =
+        task.status === 'cancelled' ? 'not_started' : normalizeTaskStatus(task.status);
+
       setTasks((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, archived: false, archivedAt: null } : t))
+        prev.map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                archived: false,
+                archivedAt: null,
+                status: nextStatus,
+                completed: nextStatus === 'completed',
+              }
+            : t
+        )
       );
 
       const { error } = await supabase
         .from(TABLE)
-        .update({ archived: false, archived_at: null })
+        .update({
+          archived: false,
+          archived_at: null,
+          status: nextStatus,
+          completed: nextStatus === 'completed',
+          completed_at: nextStatus === 'completed' ? task.completedAt : null,
+        })
         .eq('id', id);
 
       if (error) {
@@ -320,21 +364,29 @@ export function useTasks(showToast) {
 
       const completed = !task.completed;
       const completedAt = completed ? new Date().toISOString() : null;
+      const status = completed ? 'completed' : 'not_started';
 
       setTasks((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, completed, completedAt } : t))
+        prev.map((t) => (t.id === id ? { ...t, completed, completedAt, status } : t))
       );
 
       const { error } = await supabase
         .from(TABLE)
-        .update({ completed, completed_at: completedAt })
+        .update({ completed, completed_at: completedAt, status })
         .eq('id', id);
 
       if (error) {
         console.error(error);
         setTasks((prev) =>
           prev.map((t) =>
-            t.id === id ? { ...t, completed: task.completed, completedAt: task.completedAt } : t
+            t.id === id
+              ? {
+                  ...t,
+                  completed: task.completed,
+                  completedAt: task.completedAt,
+                  status: task.status,
+                }
+              : t
           )
         );
         showToast?.('تعذّر تحديث حالة المهمة', 'ph-x-circle', 'error');
@@ -347,35 +399,68 @@ export function useTasks(showToast) {
   );
 
   const setTaskStatus = useCallback(
-    async (id, status) => {
+    async (id, statusRaw) => {
       const task = tasks.find((t) => t.id === id);
       if (!task) return;
 
+      const status = normalizeTaskStatus(statusRaw);
       const completed = status === 'completed';
       const completedAt = completed ? new Date().toISOString() : null;
+      const shouldArchive = status === 'cancelled';
+      const archivedAt = shouldArchive ? new Date().toISOString() : task.archivedAt;
 
       setTasks((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, status, completed, completedAt } : t))
+        prev.map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                status,
+                completed,
+                completedAt,
+                archived: shouldArchive ? true : t.archived,
+                archivedAt: shouldArchive ? archivedAt : t.archivedAt,
+              }
+            : t
+        )
       );
 
-      const { error } = await supabase
-        .from(TABLE)
-        .update({ status, completed, completed_at: completedAt })
-        .eq('id', id);
+      const patch = {
+        status,
+        completed,
+        completed_at: completedAt,
+      };
+      if (shouldArchive) {
+        patch.archived = true;
+        patch.archived_at = archivedAt;
+      }
+
+      const { error } = await supabase.from(TABLE).update(patch).eq('id', id);
 
       if (error) {
         console.error(error);
         setTasks((prev) =>
           prev.map((t) =>
             t.id === id
-              ? { ...t, status: task.status, completed: task.completed, completedAt: task.completedAt }
+              ? {
+                  ...t,
+                  status: task.status,
+                  completed: task.completed,
+                  completedAt: task.completedAt,
+                  archived: task.archived,
+                  archivedAt: task.archivedAt,
+                }
               : t
           )
         );
         showToast?.('تعذّر تحديث مرحلة المهمة', 'ph-x-circle', 'error');
         return;
       }
-      // بدون Toast عند تغيير المرحلة — أقل تشتيتاً أثناء العمل
+
+      if (shouldArchive) {
+        showToast?.(`أُلغيت وأُرشفت "${task.title}"`, 'ph-x-circle');
+      } else if (status === 'deferred') {
+        showToast?.(`أُجّلت "${task.title}" — أعد جدولتها عند الجاهزية`, 'ph-clock-countdown');
+      }
     },
     [tasks, showToast]
   );
@@ -443,26 +528,49 @@ export function useTasks(showToast) {
       if (!task) return;
 
       const previousDate = task.dueDate;
+      const previousStatus = task.status;
+      // إعادة جدولة مهمة مؤجلة → تعود نشطة
+      const liftDefer = previousStatus === 'deferred';
 
       setTasks((prev) =>
-        prev.map((t) => (String(t.id) === String(id) ? { ...t, dueDate: newDate } : t))
+        prev.map((t) =>
+          String(t.id) === String(id)
+            ? {
+                ...t,
+                dueDate: newDate,
+                status: liftDefer ? 'not_started' : t.status,
+                completed: liftDefer ? false : t.completed,
+              }
+            : t
+        )
       );
 
-      const { error } = await supabase
-        .from(TABLE)
-        .update({ due_date: newDate })
-        .eq('id', task.id);
+      const patch = { due_date: newDate };
+      if (liftDefer) {
+        patch.status = 'not_started';
+        patch.completed = false;
+        patch.completed_at = null;
+      }
+
+      const { error } = await supabase.from(TABLE).update(patch).eq('id', task.id);
 
       if (error) {
         console.error(error);
         setTasks((prev) =>
-          prev.map((t) => (String(t.id) === String(id) ? { ...t, dueDate: previousDate } : t))
+          prev.map((t) =>
+            String(t.id) === String(id)
+              ? { ...t, dueDate: previousDate, status: previousStatus }
+              : t
+          )
         );
         showToast?.('تعذّر تحديث الموعد', 'ph-x-circle', 'error');
         return;
       }
 
-      showToast?.('تم تحديث موعد المهمة', 'ph-calendar-check');
+      showToast?.(
+        liftDefer ? 'أُعيدت جدولة المهمة وأُنشطت' : 'تم تحديث موعد المهمة',
+        'ph-calendar-check'
+      );
     },
     [tasks, showToast]
   );
