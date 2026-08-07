@@ -18,10 +18,6 @@ function formatSpent(seconds) {
   return `${m}د`;
 }
 
-/**
- * صف مهمة موحّد — مسطّح بلا بطاقة داخل بطاقة.
- * variant: default | archive
- */
 export default function TaskRow({
   task,
   onToggleComplete,
@@ -33,6 +29,7 @@ export default function TaskRow({
   variant = 'default',
   draggable = true,
   workDays,
+  exiting = false,
 }) {
   const isArchive = variant === 'archive';
   const overdue = !isArchive && isTaskOverdue(task);
@@ -55,11 +52,11 @@ export default function TaskRow({
 
   return (
     <div
-      className={`task-row ${task.completed ? 'is-completed' : ''} ${overdue ? 'is-overdue' : ''} ${isArchive ? 'is-archive' : ''}`}
+      className={`task-row task-row-enter ${task.completed ? 'is-completed' : ''} ${overdue ? 'is-overdue' : ''} ${isArchive ? 'is-archive' : ''} ${exiting ? 'is-exiting' : ''}`}
       style={{ '--q-color': qColor, '--ctx-color': contextMeta.color, '--ctx-bg': contextMeta.bg }}
-      draggable={draggable && !isArchive}
+      draggable={draggable && !isArchive && !exiting}
       onDragStart={(e) => {
-        if (isArchive) return;
+        if (isArchive || exiting) return;
         e.dataTransfer.setData('text/plain', String(task.id));
         e.dataTransfer.effectAllowed = 'move';
         e.currentTarget.classList.add('is-dragging');

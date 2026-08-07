@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import TaskRow from './TaskRow';
+import EmptyState from './EmptyState';
 import {
   compareTasksBySchedule,
   getOccurrenceDates,
@@ -38,7 +39,7 @@ function isActiveToday(task, workDays) {
 function completedOnDay(task, dayIso) {
   if (!task.completed) return false;
   const raw = task.completedAt || task.completed_at;
-  if (!raw) return true; // completed بدون طابع — نحسبها لليوم بحذر كأقل تقدير في العداد اللحظي فقط
+  if (!raw) return true;
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return false;
   return toLocalISO(d) === dayIso;
@@ -56,7 +57,6 @@ function computeStreak(tasks) {
   if (days.size === 0) return 0;
   let streak = 0;
   const cursor = startOfToday();
-  // إن لم يُنجز شيء اليوم، ابدأ من أمس
   if (!days.has(toLocalISO(cursor))) {
     cursor.setDate(cursor.getDate() - 1);
   }
@@ -78,6 +78,7 @@ export default function QuadrantBoard({
   onDelete,
   onMoveTask,
   onReorderInQuadrant,
+  onAddTask,
   workDays,
 }) {
   const [collapsed, setCollapsed] = useState({});
@@ -213,11 +214,13 @@ export default function QuadrantBoard({
                   onDrop={(e) => handleDropOnZone(e, q.id)}
                 >
                   {items.length === 0 ? (
-                    <div className="matrix-empty">
-                      <i className="ph ph-tray" />
-                      <p>لا مهام في هذا القسم</p>
-                      <span>اسحب مهمة إلى هنا أو أضف مهمة جديدة</span>
-                    </div>
+                    <EmptyState
+                      icon="ph-tray"
+                      title="لا مهام في هذا القسم"
+                      hint="اسحب مهمة إلى هنا أو أضف مهمة جديدة"
+                      actionLabel={onAddTask ? 'مهمة جديدة' : undefined}
+                      onAction={onAddTask}
+                    />
                   ) : (
                     items.map((task) => (
                       <div
