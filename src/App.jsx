@@ -123,7 +123,6 @@ export default function App() {
     return () => window.removeEventListener('open-task-notes', handler);
   }, []);
 
-  // Alt+G → استراحة
   useEffect(() => {
     const onKey = (e) => {
       if (e.altKey && (e.key === 'g' || e.key === 'G')) {
@@ -135,7 +134,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // تريلو لم يعد صفحة منفصلة — حوّل الروابط القديمة إلى الإعدادات
   useEffect(() => {
     if (view === 'Trello') setView('Settings');
   }, [view]);
@@ -475,6 +473,8 @@ export default function App() {
             onDelete={archiveTask}
             onMoveTask={moveTask}
             workDaysForTrello={workDays}
+            onExport={handleExport}
+            onImportFile={handleImportFile}
           />
         )}
         </div>
