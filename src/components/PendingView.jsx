@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import TaskRow from './TaskRow';
+import EmptyState from './EmptyState';
 import {
   compareTasksBySchedule,
   getOccurrenceDates,
   getTaskStartDate,
   isTaskOverdue,
   startOfToday,
-  toLocalISO,
 } from '../utils/dateUtils';
 
 const QUADRANTS = [
@@ -68,6 +68,7 @@ export default function PendingView({
   onToggleSubtask,
   onEdit,
   onDelete,
+  onAddTask,
   workDays,
 }) {
   const [qFilter, setQFilter] = useState('all');
@@ -84,8 +85,6 @@ export default function PendingView({
       list = list.filter((t) => t.quadrant === qFilter);
     }
 
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
@@ -192,11 +191,13 @@ export default function PendingView({
       <p className="pending-count-hint">{filtered.length} مهمة</p>
 
       {filtered.length === 0 ? (
-        <div className="matrix-empty pending-empty">
-          <i className="ph ph-check-circle" />
-          <p>لا مهام معلقة مطابقة</p>
-          <span>غيّر الفلاتر أو أضف مهمة جديدة</span>
-        </div>
+        <EmptyState
+          icon="ph-check-circle"
+          title="لا مهام معلقة مطابقة"
+          hint="غيّر الفلاتر أو أضف مهمة جديدة"
+          actionLabel={onAddTask ? 'مهمة جديدة' : undefined}
+          onAction={onAddTask}
+        />
       ) : (
         <div className="matrix-sections">
           {groups.map((g) => (

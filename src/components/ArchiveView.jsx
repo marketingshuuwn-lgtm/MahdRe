@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import TaskRow from './TaskRow';
+import EmptyState from './EmptyState';
 import { startOfToday, toLocalISO } from '../utils/dateUtils';
 
 const ARCHIVE_GROUPS = [
@@ -63,11 +64,11 @@ export default function ArchiveView({
       </div>
 
       {tasks.length === 0 ? (
-        <div className="matrix-empty">
-          <i className="ph ph-archive" />
-          <p>لا مهام مؤرشفة هنا</p>
-          <span>المهام المؤرشفة تظهر في هذه القائمة ويمكن استرجاعها</span>
-        </div>
+        <EmptyState
+          icon="ph-archive"
+          title="لا مهام مؤرشفة هنا"
+          hint="المهام المؤرشفة تظهر في هذه القائمة ويمكن استرجاعها في أي وقت"
+        />
       ) : (
         <div className="matrix-sections">
           {groups.map((g) => (
