@@ -121,6 +121,7 @@ export default function App() {
     updateWorkspace,
     archiveWorkspace,
     reorderWorkspaces,
+    ensureContextsFromTasks,
   } = useWorkspaces();
 
   const [view, setView] = useState('Matrix');
@@ -145,6 +146,12 @@ export default function App() {
     setModalOpen(true);
   };
   const closeModal = () => setModalOpen(false);
+
+  // استعادة تبويبات المساحات من context المهام بعد دمج أضاع التسميات المخصّصة
+  useEffect(() => {
+    if (!tasks.length) return;
+    ensureContextsFromTasks(tasks.map((t) => t.context));
+  }, [tasks, ensureContextsFromTasks]);
 
   useEffect(() => {
     const handler = (e) => setNotesTarget(e.detail);
