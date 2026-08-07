@@ -9,12 +9,12 @@ import KpiView from './components/KpiView';
 import BreakSpace from './components/BreakSpace';
 import FloatingTimer from './components/FloatingTimer';
 import TimeTrackingSync from './components/TimeTrackingSync';
-import TrelloView from './components/TrelloView';
 import SettingsView from './components/SettingsView';
 import ArchiveView from './components/ArchiveView';
 import NotepadView from './components/NotepadView';
 import TaskModal from './components/TaskModal';
 import NotesModal from './components/NotesModal';
+import ShortcutsHelp from './components/ShortcutsHelp';
 import ViewSwitcher from './components/ViewSwitcher';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import { useTasks } from './hooks/useTasks';
@@ -33,8 +33,17 @@ import {
 } from './utils/taskMeta';
 
 const THEME_KEY = 'mahd_theme_react_v1';
-const SIDEBAR_KEY = 'mahd_sidebar_compact';
 const NOTIFICATION_SETTINGS_KEY = 'mahd_notification_settings_v1';
+
+const NAV_BY_DIGIT = {
+  '1': 'Matrix',
+  '2': 'Pending',
+  '3': 'Kpi',
+  '4': 'Motivation',
+  '5': 'Notepad',
+  '6': 'Archive',
+  '7': 'Settings',
+};
 
 const DEFAULT_NOTIFICATION_SETTINGS = {
   enabled: false,
@@ -66,6 +75,14 @@ function readSavedNotificationSettings() {
 function getNotificationPermission() {
   if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
   return Notification.permission;
+}
+
+function isTypingTarget(el) {
+  if (!el || !(el instanceof Element)) return false;
+  const tag = el.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (el.isContentEditable) return true;
+  return Boolean(el.closest?.('[contenteditable="true"]'));
 }
 
 const TRELLO_SYNC_ENABLED = true;
@@ -115,7 +132,18 @@ export default function App() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [notesTarget, setNotesTarget] = useState(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const trelloAutoSynced = useRef(false);
+
+  const openAddModal = () => {
+    setEditingTaskId(null);
+    setModalOpen(true);
+  };
+  const openEditModal = (id) => {
+    setEditingTaskId(id);
+    setModalOpen(true);
+  };
+  const closeModal = () => setModalOpen(false);
 
   useEffect(() => {
     const handler = (e) => setNotesTarget(e.detail);
@@ -125,14 +153,66 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.altKey && (e.key === 'g' || e.key === 'G')) {
+      // Esc: أغلق الطبقات من الأعمق
+      if (e.key === 'Escape') {
+        if (shortcutsOpen) {
+          e.preventDefault();
+          setShortcutsOpen(false);
+          return;
+        }
+        if (notesTarget) {
+          e.preventDefault();
+          setNotesTarget(null);
+          return;
+        }
+        if (modalOpen) {
+          e.preventDefault();
+          setModalOpen(false);
+          return;
+        }
+        if (sidebarOpen) {
+          e.preventDefault();
+          setSidebarOpen(false);
+        }
+        return;
+      }
+
+      // ؟ أو / — مساعدة الاختصارات (خارج حقول الكتابة)
+      if (!e.altKey && !e.ctrlKey && !e.metaKey && (e.key === '?' || e.key === '/')) {
+        if (isTypingTarget(e.target)) return;
         e.preventDefault();
-        setView('Motivation');
+        setShortcutsOpen((v) => !v);
+        return;
+      }
+
+      if (!e.altKey || e.ctrlKey || e.metaKey) return;
+      if (isTypingTarget(e.target) && e.key !== 'Escape') return;
+
+      const k = e.key;
+
+      if (k === 'g' || k === 'G' || k === '4') {
+        e.preventDefault();
+        setView(k === '4' ? 'Motivation' : 'Motivation');
+        setSidebarOpen(false);
+        return;
+      }
+
+      if (k === 'n' || k === 'N') {
+        e.preventDefault();
+        openAddModal();
+        return;
+      }
+
+      if (NAV_BY_DIGIT[k]) {
+        e.preventDefault();
+        setView(NAV_BY_DIGIT[k]);
+        setSidebarOpen(false);
       }
     };
+
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [shortcutsOpen, notesTarget, modalOpen, sidebarOpen]);
 
   useEffect(() => {
     if (view === 'Trello') setView('Settings');
@@ -201,16 +281,6 @@ export default function App() {
           return { created: 0, updated: 0 };
         },
   };
-
-  const openAddModal = () => {
-    setEditingTaskId(null);
-    setModalOpen(true);
-  };
-  const openEditModal = (id) => {
-    setEditingTaskId(id);
-    setModalOpen(true);
-  };
-  const closeModal = () => setModalOpen(false);
 
   const handleSaveTask = (form, id) => {
     const extra = {
@@ -505,6 +575,7 @@ export default function App() {
         onClose={() => setNotesTarget(null)}
         showToast={showToast}
       />
+      <ShortcutsHelp isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   );
 }

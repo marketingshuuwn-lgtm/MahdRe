@@ -18,6 +18,7 @@ import './styles/sidebar-rail.css';
 import './styles/matrix-stack.css';
 import './styles/settings-tabs.css';
 import './styles/kpi-motion.css';
+import './styles/shortcuts-help.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
