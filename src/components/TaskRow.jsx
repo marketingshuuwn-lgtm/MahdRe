@@ -1,7 +1,18 @@
 import { useEffect, useState } from 'react';
-import { formatTaskSchedule, isTaskOverdue } from '../utils/dateUtils';
+import {
+  formatTaskSchedule,
+  isTaskOverdue,
+  isRecurringTask,
+  toLocalISO,
+  startOfToday,
+} from '../utils/dateUtils';
 import { getSubtaskStats, normalizeSubtasks } from '../utils/subtasks';
 import { getTaskContextMeta } from '../utils/taskMeta';
+import {
+  isCompletedToday,
+  nextCycleStatus,
+  normalizeTaskStatus,
+} from '../utils/taskStatus';
 
 const QUADRANT_COLORS = {
   'important-urgent': 'var(--danger)',
@@ -33,14 +44,16 @@ export default function TaskRow({
   exiting = false,
 }) {
   const isArchive = variant === 'archive';
-  const overdue = !isArchive && isTaskOverdue(task);
-  // وسم حي: يعتمد task.context + قائمة المساحات (إعادة التسمية تظهر فوراً)
+  const status = normalizeTaskStatus(task);
+  const doneToday = isCompletedToday(task, null, toLocalISO, startOfToday);
+  const showAsCompleted =
+    status === 'completed' && (!isRecurringTask(task) || doneToday);
+  const overdue = !isArchive && status !== 'deferred' && isTaskOverdue(task, { workDays });
   const contextMeta = getTaskContextMeta(task.context, workspaces);
   const subtasks = normalizeSubtasks(task.subtasks);
   const subtaskStats = getSubtaskStats(subtasks);
   const qColor = QUADRANT_COLORS[task.quadrant] || 'var(--accent)';
   const spent = formatSpent(task.timeSpentSeconds);
-  const status = task.status || (task.completed ? 'completed' : 'not_started');
 
   const [trackingState, setTrackingState] = useState({ activeTaskId: null, label: '0:00' });
 
@@ -54,9 +67,9 @@ export default function TaskRow({
 
   return (
     <div
-      className={`task-row task-row-enter ${task.completed ? 'is-completed' : ''} ${overdue ? 'is-overdue' : ''} ${isArchive ? 'is-archive' : ''} ${exiting ? 'is-exiting' : ''}`}
+      className={`task-row task-row-enter ${showAsCompleted ? 'is-completed' : ''} ${overdue ? 'is-overdue' : ''} ${status === 'deferred' ? 'is-deferred' : ''} ${isArchive ? 'is-archive' : ''} ${exiting ? 'is-exiting' : ''}`}
       style={{ '--q-color': qColor, '--ctx-color': contextMeta.color, '--ctx-bg': contextMeta.bg }}
-      draggable={draggable && !isArchive && !exiting}
+      draggable={draggable && !isArchive && !exiting && status !== 'deferred'}
       onDragStart={(e) => {
         if (isArchive || exiting) return;
         e.dataTransfer.setData('text/plain', String(task.id));
@@ -71,8 +84,11 @@ export default function TaskRow({
           className={`task-row-status status-${status}`}
           onClick={(e) => {
             e.stopPropagation();
-            const order = ['not_started', 'in_progress', 'completed'];
-            const next = order[(order.indexOf(status) + 1) % order.length];
+            if (status === 'deferred' || status === 'cancelled') {
+              onSetStatus?.(task.id, 'not_started');
+              return;
+            }
+            const next = nextCycleStatus(status);
             if (onSetStatus) onSetStatus(task.id, next);
             else onToggleComplete?.(task.id);
           }}
@@ -81,16 +97,23 @@ export default function TaskRow({
               not_started: 'لم تبدأ — اضغط للبدء',
               in_progress: 'قيد التنفيذ — اضغط للإكمال',
               completed: 'مكتملة — اضغط لإعادة الفتح',
+              deferred: 'مؤجلة — اضغط لإعادة التنشيط',
+              cancelled: 'ملغاة',
             }[status]
           }
           aria-label="حالة المهمة"
         >
-          {status === 'completed' && <i className="ph ph-check" />}
+          {showAsCompleted && <i className="ph ph-check" />}
           {status === 'in_progress' && <span className="status-dot" />}
+          {status === 'deferred' && <i className="ph ph-clock" />}
         </button>
       ) : (
-        <span className="task-row-status status-archived" title="مؤرشفة" aria-hidden>
-          <i className="ph ph-archive" />
+        <span
+          className={`task-row-status status-archived ${status === 'cancelled' ? 'status-cancelled' : ''}`}
+          title={status === 'cancelled' ? 'ملغاة ومؤرشفة' : 'مؤرشفة'}
+          aria-hidden
+        >
+          <i className={`ph ${status === 'cancelled' ? 'ph-x' : 'ph-archive'}`} />
         </span>
       )}
 
@@ -113,6 +136,18 @@ export default function TaskRow({
               <i className={`ph ${contextMeta.icon}`} />
               {contextMeta.label}
             </span>
+            {status === 'deferred' && (
+              <span className="task-row-chip deferred" title="مؤجلة">
+                <i className="ph ph-clock-countdown" />
+                مؤجلة
+              </span>
+            )}
+            {status === 'cancelled' && isArchive && (
+              <span className="task-row-chip cancelled" title="ملغاة">
+                <i className="ph ph-x-circle" />
+                ملغاة
+              </span>
+            )}
             {task.externalSource === 'trello' && (
               <span className="task-row-chip source" title="من تريلو">
                 <i className="ph ph-kanban" />
@@ -135,7 +170,7 @@ export default function TaskRow({
                 {subtaskStats.completed}/{subtaskStats.total}
               </span>
             )}
-            {isArchive && task.completed && (
+            {isArchive && task.completed && status !== 'cancelled' && (
               <span className="task-row-chip mute">كانت مكتملة</span>
             )}
           </div>
@@ -193,6 +228,30 @@ export default function TaskRow({
           </>
         ) : (
           <>
+            {status !== 'deferred' && (
+              <button
+                type="button"
+                className="btn-icon"
+                title="تأجيل"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSetStatus?.(task.id, 'deferred');
+                }}
+              >
+                <i className="ph ph-clock-countdown" />
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn-icon danger"
+              title="إلغاء → أرشيف"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSetStatus?.(task.id, 'cancelled');
+              }}
+            >
+              <i className="ph ph-x-circle" />
+            </button>
             {task.externalUrl && (
               <a
                 href={task.externalUrl}
