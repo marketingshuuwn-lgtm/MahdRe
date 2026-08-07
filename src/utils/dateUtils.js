@@ -1,5 +1,6 @@
 /** تنسيق تاريخ محلي بدون مشاكل UTC */
 import { DEFAULT_WORK_DAYS, formatWorkDays, normalizeWorkDays } from './taskMeta';
+import { isCompletedToday, normalizeTaskStatus } from './taskStatus';
 
 export function toLocalISO(date) {
   const y = date.getFullYear();
@@ -24,17 +25,10 @@ export function isRecurringTask(task) {
   return task?.recurrence === 'daily' || task?.recurrence === 'weekly';
 }
 
-/**
- * due_date = البداية / مرساة التكرار
- * duration للمهام العادية = أيام متصلة للمشروع
- * duration للمتكرر = عمر السلسلة بالأيام من البداية (مثلاً 40 يوم)
- *   داخل هذا العمر فقط تظهر أيام التكرار المحددة — لا تمدد لانهائي
- */
 export function getTaskStartDate(task) {
   return parseLocalDate(task?.dueDate);
 }
 
-/** نهاية عمر المهمة (مشروع متصل أو نهاية سلسلة التكرار) */
 export function getTaskEndDate(task) {
   const start = getTaskStartDate(task);
   if (!start) return null;
@@ -54,18 +48,10 @@ const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
 
 function resolveDailyWorkDays(options = {}) {
   if (Array.isArray(options.workDays)) return normalizeWorkDays(options.workDays);
-  // توافق خلفي: لو استُخدم skipFriday=false يعني كل الأيام.
   if (options.skipFriday === false) return EVERY_DAY;
   return DEFAULT_WORK_DAYS;
 }
 
-/**
- * تواريخ الحدوث داخل تقاطع:
- *   [نافذة العرض] ∩ [عمر المهمة من البداية]
- * - weekly: أيام recurrenceDays فقط
- * - daily: أيام العمل المحددة في الإعدادات (افتراضياً الأحد–الخميس)
- * - مرة واحدة: أيام متصلة بطول المدة
- */
 export function getOccurrenceDates(task, fromDate, toDate, options = {}) {
   const out = [];
   if (!task) return out;
@@ -78,10 +64,8 @@ export function getOccurrenceDates(task, fromDate, toDate, options = {}) {
   const start = getTaskStartDate(task);
   const end = getTaskEndDate(task);
 
-  // بدون تاريخ بداية: لا حدوثات مجدولة
   if (!start) return out;
 
-  // نطاق فعال = تقاطع عمر المهمة مع نافذة العرض
   const rangeFrom = start > windowFrom ? start : windowFrom;
   const rangeTo = end && end < windowTo ? end : windowTo;
   if (rangeFrom > rangeTo) return out;
@@ -93,9 +77,7 @@ export function getOccurrenceDates(task, fromDate, toDate, options = {}) {
     if (days.length === 0) return out;
     const cursor = new Date(rangeFrom);
     while (cursor <= rangeTo) {
-      if (days.includes(cursor.getDay())) {
-        out.push(toLocalISO(cursor));
-      }
+      if (days.includes(cursor.getDay())) out.push(toLocalISO(cursor));
       cursor.setDate(cursor.getDate() + 1);
     }
     return out;
@@ -105,15 +87,12 @@ export function getOccurrenceDates(task, fromDate, toDate, options = {}) {
     const workDays = resolveDailyWorkDays(options);
     const cursor = new Date(rangeFrom);
     while (cursor <= rangeTo) {
-      if (workDays.includes(cursor.getDay())) {
-        out.push(toLocalISO(cursor));
-      }
+      if (workDays.includes(cursor.getDay())) out.push(toLocalISO(cursor));
       cursor.setDate(cursor.getDate() + 1);
     }
     return out;
   }
 
-  // مرة واحدة — أيام متصلة ضمن العمر
   const cursor = new Date(rangeFrom);
   while (cursor <= rangeTo) {
     out.push(toLocalISO(cursor));
@@ -122,12 +101,43 @@ export function getOccurrenceDates(task, fromDate, toDate, options = {}) {
   return out;
 }
 
-export function isTaskOverdue(task) {
-  if (!task || task.completed) return false;
+/**
+ * متأخرة:
+ * - ملغاة / مؤجلة / منجزة (لليوم إن كانت دورية) → لا
+ * - دورية: يوجد حدوث قبل اليوم ضمن العمر ولم تُنجز اليوم
+ * - عادية: تاريخ النهاية قبل اليوم
+ */
+export function isTaskOverdue(task, options = {}) {
+  if (!task) return false;
+  const status = normalizeTaskStatus(task);
+  if (status === 'cancelled' || status === 'deferred') return false;
+  if (task.archived) return false;
+
+  const doneToday = () =>
+    isCompletedToday(task, null, toLocalISO, startOfToday);
+
+  if (status === 'completed' || task.completed) {
+    if (!isRecurringTask(task)) return false;
+    if (doneToday()) return false;
+  }
+
+  const today = startOfToday();
+  const start = getTaskStartDate(task);
   const end = getTaskEndDate(task);
+
+  if (isRecurringTask(task)) {
+    if (!start) return false;
+    if (end && end < today) return true; // انتهت السلسلة بلا إنجاز مستمر
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (yesterday < start) return false;
+    const pastOcc = getOccurrenceDates(task, start, yesterday, options);
+    if (pastOcc.length === 0) return false;
+    return !doneToday();
+  }
+
   if (!end) return false;
-  // انتهت سلسلة التكرار / المشروع ولم تُنجز
-  return end < startOfToday();
+  return end < today;
 }
 
 export function formatDate(dateStr) {
@@ -173,7 +183,15 @@ export function formatTaskSchedule(task, options = {}) {
 }
 
 export function taskScheduleSortKey(task, options = {}) {
-  if (task.completed) {
+  const status = normalizeTaskStatus(task);
+  if (status === 'deferred') return { bucket: 45, time: 0 };
+
+  const doneToday = isCompletedToday(task, null, toLocalISO, startOfToday);
+  const effectivelyDone =
+    (status === 'completed' || task.completed) &&
+    (!isRecurringTask(task) || doneToday);
+
+  if (effectivelyDone) {
     const end = getTaskEndDate(task);
     return { bucket: 100, time: end ? end.getTime() : 0 };
   }
@@ -181,7 +199,7 @@ export function taskScheduleSortKey(task, options = {}) {
   const end = getTaskEndDate(task);
   if (!start) return { bucket: 50, time: Infinity };
   const today = startOfToday();
-  if (end && end < today) return { bucket: 0, time: start.getTime() };
+  if (isTaskOverdue(task, options)) return { bucket: 0, time: start.getTime() };
 
   if (isRecurringTask(task)) {
     const windowEnd = new Date(today);
