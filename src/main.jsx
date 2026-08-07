@@ -15,6 +15,7 @@ import './styles/task-notes.css';
 import './styles/notepad.css';
 import './styles/nav-data.css';
 import './styles/task-modal-draft.css';
+import './styles/task-status.css';
 
 /* 3. Design system (tokens + controls — no matrix layout) */
 import './styles/design-system.css';
