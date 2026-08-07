@@ -111,6 +111,7 @@ export default function App() {
 
   const trello = useTrello(showToast, () => refetch());
   const {
+    workspaces,
     visibleWorkspaces,
     activeWorkspaceId,
     activeWorkspace,
@@ -147,7 +148,6 @@ export default function App() {
   };
   const closeModal = () => setModalOpen(false);
 
-  // استعادة تبويبات المساحات من context المهام بعد دمج أضاع التسميات المخصّصة
   useEffect(() => {
     if (!tasks.length) return;
     ensureContextsFromTasks(tasks.map((t) => t.context));
@@ -468,6 +468,7 @@ export default function App() {
                 onReorderInQuadrant={reorderInQuadrant}
                 onAddTask={openAddModal}
                 workDays={workDays}
+                workspaces={workspaces}
               />
             )}
             {subview === 'Timeline' && (
@@ -504,7 +505,7 @@ export default function App() {
             onDelete={archiveTask}
             onAddTask={openAddModal}
             workDays={workDays}
-            workspaces={visibleWorkspaces}
+            workspaces={workspaces}
           />
         )}
 
@@ -522,6 +523,7 @@ export default function App() {
             onRestore={restoreTask}
             onEdit={openEditModal}
             workDays={workDays}
+            workspaces={workspaces}
             workspaceLabel={isAllMode ? 'كل المساحات' : activeWorkspace?.label || activeWorkspaceId}
           />
         )}
