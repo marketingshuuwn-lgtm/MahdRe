@@ -1,0 +1,95 @@
+/**
+ * Design tokens — single source for colors, type, space, radius.
+ * Loaded first from main.jsx. Do not redefine competing :root colors elsewhere.
+ */
+
+:root {
+  /* Clay + brand green */
+  --bg-color: #e8e8e6;
+  --bg-gradient: radial-gradient(120% 90% at 50% 0%, #f0f0ee 0%, #e6e6e4 55%, #dededa 100%);
+  --card-bg: #f8f8f6;
+  --card-bg-grad: linear-gradient(180deg, #f8f8f6, #f2f2f0);
+  --white: #fcfcfb;
+  --text-primary: #20201d;
+  --text-secondary: #6b6b63;
+  --text-muted: #8f8f89;
+  --border-color: rgba(32, 32, 29, 0.08);
+  --hover-bg: rgba(32, 32, 29, 0.05);
+
+  --accent: #16a370;
+  --accent-deep: #0e8a5c;
+  --accent-light: rgba(22, 163, 112, 0.1);
+  --danger: #e0483f;
+  --danger-light: rgba(224, 72, 63, 0.1);
+  --success: #3d9a6a;
+  --success-light: rgba(61, 154, 106, 0.12);
+  --warning: #c9892e;
+  --warning-light: rgba(201, 137, 46, 0.12);
+  --q4: #8f8f89;
+  --q4-light: rgba(143, 143, 137, 0.12);
+
+  --shadow-soft: 0 1px 2px rgba(30, 30, 25, 0.05), 0 6px 16px -6px rgba(30, 30, 25, 0.12), inset 0 1px 0 #fff;
+  --shadow-hover: 0 4px 10px rgba(30, 30, 25, 0.08), 0 18px 40px -12px rgba(30, 30, 25, 0.22), inset 0 1px 0 #fff;
+  --shadow-card: 0 30px 60px -25px rgba(30, 30, 25, 0.22), 0 6px 18px -6px rgba(30, 30, 25, 0.06), inset 0 1px 0 #fff;
+
+  --fw-light: 400;
+  --fw-regular: 400;
+  --fw-bold: 700;
+  --fw-extrabold: 700;
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-base: 13.5px;
+  --fs-md: 14.5px;
+  --fs-lg: 16px;
+  --fs-xl: 18px;
+  --fs-2xl: 21px;
+  --fs-3xl: 25px;
+
+  --sidebar-w: 260px;
+  --sidebar-compact-w: 76px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+  --radius-pill: 999px;
+  --page-pad-x: clamp(16px, 2vw, 36px);
+  --page-pad-y: clamp(14px, 1.6vh, 28px);
+  --page-pad-bottom: 112px;
+  --control-h: 40px;
+  --focus-ring: 0 0 0 3px var(--accent-light);
+  --ease: 0.18s ease;
+}
+
+[data-theme="dark"] {
+  --bg-color: #1c1b19;
+  --bg-gradient: radial-gradient(120% 90% at 50% 0%, #26241f 0%, #1c1b19 55%, #151412 100%);
+  --card-bg: #26241f;
+  --card-bg-grad: linear-gradient(180deg, #28261f, #211f1a);
+  --white: #2c2a24;
+  --text-primary: #f2ede4;
+  --text-secondary: #b3ab9c;
+  --text-muted: #83796a;
+  --border-color: rgba(255, 245, 230, 0.08);
+  --hover-bg: rgba(255, 245, 230, 0.06);
+  --accent: #34e0a1;
+  --accent-deep: #1fcf8c;
+  --accent-light: rgba(52, 224, 161, 0.16);
+  --danger: #e8756c;
+  --danger-light: rgba(232, 117, 108, 0.14);
+  --success: #5cb88a;
+  --success-light: rgba(92, 184, 138, 0.14);
+  --warning: #e0b04a;
+  --warning-light: rgba(224, 176, 74, 0.14);
+  --q4: #9a9488;
+  --q4-light: rgba(154, 148, 136, 0.12);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.25), 0 6px 16px -6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --shadow-hover: 0 4px 10px rgba(0, 0, 0, 0.3), 0 18px 40px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --shadow-card: 0 30px 60px -25px rgba(0, 0, 0, 0.5), 0 6px 18px -6px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
