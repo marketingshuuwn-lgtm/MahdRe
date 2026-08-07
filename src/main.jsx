@@ -16,17 +16,18 @@ import './styles/notepad.css';
 import './styles/nav-data.css';
 import './styles/task-modal-draft.css';
 import './styles/task-status.css';
+import './styles/task-row-layers.css';
 
-/* 3. Design system (tokens + controls — no matrix layout) */
+/* 3. Design system */
 import './styles/design-system.css';
 
-/* 4. Shell spacing + floats */
+/* 4. Shell */
 import './styles/layout-shell.css';
 
-/* 5. Navigation rail (sole sidebar source) */
+/* 5. Navigation rail */
 import './styles/sidebar-rail.css';
 
-/* 6. Matrix / TaskRow — sole source for task list layout */
+/* 6. Matrix / TaskRow */
 import './styles/matrix-stack.css';
 
 /* 7. Feature polish */
