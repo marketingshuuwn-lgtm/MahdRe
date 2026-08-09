@@ -247,7 +247,7 @@ export function useTasks(showToast) {
       };
       if (shouldArchive) {
         patch.archived = true;
-        patch.archived_at: archivedAt;
+        patch.archived_at = archivedAt;
       }
 
       const { error } = await supabase.from(TABLE).update(patch).eq('id', id);
@@ -558,11 +558,6 @@ export function useTasks(showToast) {
     [tasks, showToast]
   );
 
-  /**
-   * options.reason:
-   * - defer_tomorrow: نية «لن أعمل عليها اليوم»
-   * - reschedule: نية «موعد جديد للخطة»
-   */
   const rescheduleTask = useCallback(
     async (id, newDate, options = {}) => {
       const task = tasks.find((t) => String(t.id) === String(id));
