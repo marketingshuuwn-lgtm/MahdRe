@@ -27,6 +27,7 @@ import { usePushNotifications } from './hooks/usePushNotifications';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { exportTasksAsCsv, exportTasksAsXlsx, readImportFile } from './utils/importExport';
 import { tomorrowISO } from './utils/deferTomorrow';
+import { SCHEDULE_REASONS } from './utils/scheduleLog';
 import {
   ALL_WORKSPACES_ID,
   DEFAULT_WORK_DAYS,
@@ -314,10 +315,9 @@ export default function App() {
     closeModal();
   };
 
+  /** نية: لن أعمل عليها اليوم */
   const handleDeferTomorrow = async (id) => {
-    const iso = tomorrowISO();
-    await rescheduleTask(id, iso);
-    showToast('تم التأجيل إلى غداً · ستظهر ضمن مهام الغد', 'ph-clock-countdown');
+    await rescheduleTask(id, tomorrowISO(), { reason: SCHEDULE_REASONS.defer_tomorrow });
   };
 
   const handleCreateWorkspace = ({ name, icon, colorIndex, trait }) => {
@@ -484,6 +484,7 @@ export default function App() {
                 onReorderInQuadrant={reorderInQuadrant}
                 onAddTask={openAddModal}
                 onDeferTomorrow={handleDeferTomorrow}
+                onReschedule={rescheduleTask}
                 workDays={workDays}
                 workspaces={workspaces}
               />
@@ -522,6 +523,7 @@ export default function App() {
             onDelete={archiveTask}
             onAddTask={openAddModal}
             onDeferTomorrow={handleDeferTomorrow}
+            onReschedule={rescheduleTask}
             workDays={workDays}
             workspaces={workspaces}
           />
