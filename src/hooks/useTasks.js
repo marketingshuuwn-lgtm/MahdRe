@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient';
 import { normalizeSubtasks } from '../utils/subtasks';
 import { normalizeTaskContext } from '../utils/taskMeta';
 import { normalizeTaskStatus } from '../utils/taskStatus';
+import { appendScheduleLog, SCHEDULE_REASONS } from '../utils/scheduleLog';
 
 const TABLE = 'tasks';
 
@@ -104,7 +105,6 @@ export function useTasks(showToast) {
       const context = normalizeTaskContext(extra.context);
       const subtasks = normalizeSubtasks(extra.subtasks);
       let status = normalizeTaskStatus(extra.status || 'not_started');
-      if (status === 'cancelled') status = 'cancelled';
       const completed = status === 'completed';
       const archived = status === 'cancelled';
       const archivedAt = archived ? new Date().toISOString() : null;
@@ -127,6 +127,7 @@ export function useTasks(showToast) {
         externalSource: null,
         externalId: null,
         externalUrl: null,
+        externalMeta: null,
         createdAt: new Date().toISOString(),
         completedAt: completed ? new Date().toISOString() : null,
       };
@@ -192,6 +193,18 @@ export function useTasks(showToast) {
         ? previous.archivedAt || new Date().toISOString()
         : previous.archivedAt;
 
+      let externalMeta = previous.externalMeta;
+      if (
+        (dueDate || '') !== (previous.dueDate || '') &&
+        extra.skipScheduleLog !== true
+      ) {
+        externalMeta = appendScheduleLog(previous.externalMeta, {
+          reason: SCHEDULE_REASONS.reschedule,
+          from: previous.dueDate || null,
+          to: dueDate || null,
+        });
+      }
+
       setTasks((prev) =>
         prev.map((t) =>
           t.id === id
@@ -211,6 +224,7 @@ export function useTasks(showToast) {
                 duration: duration || 1,
                 recurrence,
                 recurrenceDays: recurrenceDays || [],
+                externalMeta,
               }
             : t
         )
@@ -229,10 +243,11 @@ export function useTasks(showToast) {
         duration: duration || 1,
         recurrence: recurrence || null,
         recurrence_days: recurrence === 'weekly' ? recurrenceDays : null,
+        external_meta: externalMeta,
       };
       if (shouldArchive) {
         patch.archived = true;
-        patch.archived_at = archivedAt;
+        patch.archived_at: archivedAt;
       }
 
       const { error } = await supabase.from(TABLE).update(patch).eq('id', id);
@@ -316,7 +331,6 @@ export function useTasks(showToast) {
       const task = tasks.find((t) => t.id === id);
       if (!task || !task.archived) return;
 
-      // الاسترجاع يلغي الإلغاء ويعيد لم تبدأ
       const nextStatus =
         task.status === 'cancelled' ? 'not_started' : normalizeTaskStatus(task.status);
 
@@ -403,11 +417,27 @@ export function useTasks(showToast) {
       const task = tasks.find((t) => t.id === id);
       if (!task) return;
 
+      const prevStatus = normalizeTaskStatus(task);
       const status = normalizeTaskStatus(statusRaw);
       const completed = status === 'completed';
       const completedAt = completed ? new Date().toISOString() : null;
       const shouldArchive = status === 'cancelled';
       const archivedAt = shouldArchive ? new Date().toISOString() : task.archivedAt;
+
+      let externalMeta = task.externalMeta;
+      if (status === 'deferred' && prevStatus !== 'deferred') {
+        externalMeta = appendScheduleLog(task.externalMeta, {
+          reason: SCHEDULE_REASONS.park,
+          from: task.dueDate || null,
+          to: null,
+        });
+      } else if (prevStatus === 'deferred' && status !== 'deferred') {
+        externalMeta = appendScheduleLog(task.externalMeta, {
+          reason: SCHEDULE_REASONS.unpark,
+          from: null,
+          to: task.dueDate || null,
+        });
+      }
 
       setTasks((prev) =>
         prev.map((t) =>
@@ -419,6 +449,7 @@ export function useTasks(showToast) {
                 completedAt,
                 archived: shouldArchive ? true : t.archived,
                 archivedAt: shouldArchive ? archivedAt : t.archivedAt,
+                externalMeta,
               }
             : t
         )
@@ -428,6 +459,7 @@ export function useTasks(showToast) {
         status,
         completed,
         completed_at: completedAt,
+        external_meta: externalMeta,
       };
       if (shouldArchive) {
         patch.archived = true;
@@ -448,6 +480,7 @@ export function useTasks(showToast) {
                   completedAt: task.completedAt,
                   archived: task.archived,
                   archivedAt: task.archivedAt,
+                  externalMeta: task.externalMeta,
                 }
               : t
           )
@@ -459,7 +492,10 @@ export function useTasks(showToast) {
       if (shouldArchive) {
         showToast?.(`أُلغيت وأُرشفت "${task.title}"`, 'ph-x-circle');
       } else if (status === 'deferred') {
-        showToast?.(`أُجّلت "${task.title}" — أعد جدولتها عند الجاهزية`, 'ph-clock-countdown');
+        showToast?.(
+          `خارج الدورة الحالية · "${task.title}" معلّقة حتى تعيدها`,
+          'ph-pause-circle'
+        );
       }
     },
     [tasks, showToast]
@@ -522,15 +558,26 @@ export function useTasks(showToast) {
     [tasks, showToast]
   );
 
+  /**
+   * options.reason:
+   * - defer_tomorrow: نية «لن أعمل عليها اليوم»
+   * - reschedule: نية «موعد جديد للخطة»
+   */
   const rescheduleTask = useCallback(
-    async (id, newDate) => {
+    async (id, newDate, options = {}) => {
       const task = tasks.find((t) => String(t.id) === String(id));
       if (!task) return;
 
+      const reason = options.reason || SCHEDULE_REASONS.reschedule;
       const previousDate = task.dueDate;
       const previousStatus = task.status;
-      // إعادة جدولة مهمة مؤجلة → تعود نشطة
       const liftDefer = previousStatus === 'deferred';
+
+      const externalMeta = appendScheduleLog(task.externalMeta, {
+        reason,
+        from: previousDate || null,
+        to: newDate || null,
+      });
 
       setTasks((prev) =>
         prev.map((t) =>
@@ -540,12 +587,16 @@ export function useTasks(showToast) {
                 dueDate: newDate,
                 status: liftDefer ? 'not_started' : t.status,
                 completed: liftDefer ? false : t.completed,
+                externalMeta,
               }
             : t
         )
       );
 
-      const patch = { due_date: newDate };
+      const patch = {
+        due_date: newDate,
+        external_meta: externalMeta,
+      };
       if (liftDefer) {
         patch.status = 'not_started';
         patch.completed = false;
@@ -559,7 +610,12 @@ export function useTasks(showToast) {
         setTasks((prev) =>
           prev.map((t) =>
             String(t.id) === String(id)
-              ? { ...t, dueDate: previousDate, status: previousStatus }
+              ? {
+                  ...t,
+                  dueDate: previousDate,
+                  status: previousStatus,
+                  externalMeta: task.externalMeta,
+                }
               : t
           )
         );
@@ -567,10 +623,13 @@ export function useTasks(showToast) {
         return;
       }
 
-      showToast?.(
-        liftDefer ? 'أُعيدت جدولة المهمة وأُنشطت' : 'تم تحديث موعد المهمة',
-        'ph-calendar-check'
-      );
+      if (reason === SCHEDULE_REASONS.defer_tomorrow) {
+        showToast?.('لن أعمل عليها اليوم · نُقلت إلى غداً', 'ph-clock-countdown');
+      } else if (liftDefer) {
+        showToast?.('عادت للدورة · بموعد جديد', 'ph-calendar-check');
+      } else {
+        showToast?.('تم تحديث الخطة · موعد جديد', 'ph-calendar-check');
+      }
     },
     [tasks, showToast]
   );
