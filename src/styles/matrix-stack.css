@@ -57,11 +57,12 @@
   gap: 10px;
 }
 
+/* visible حتى لا تُقص قائمة ⋮ ولا تُعطّل النقر */
 .matrix-section {
   border-radius: 16px;
   background: var(--card-bg-grad);
   box-shadow: var(--shadow-soft);
-  overflow: hidden;
+  overflow: visible;
   transition: box-shadow 0.15s ease;
 }
 
@@ -80,6 +81,7 @@
   text-align: right;
   padding: 12px 14px;
   color: var(--text-primary);
+  border-radius: 16px 16px 0 0;
 }
 
 .pending-group-head {
@@ -118,11 +120,15 @@
 
 .matrix-section.is-collapsed .matrix-section-header {
   padding-block: 10px;
+  border-radius: 16px;
 }
 
 .matrix-section-body {
   padding: 0 8px 8px;
   min-height: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 0;
 }
 
 .matrix-empty {
@@ -194,6 +200,8 @@
   background: transparent;
   transition: background 0.15s ease;
   cursor: grab;
+  position: relative;
+  z-index: 1;
 }
 
 .task-row.is-archive {
@@ -206,6 +214,11 @@
 
 .task-row:hover {
   background: var(--hover-bg);
+}
+
+/* الصف المفتوح قائمته فوق الصفوف المجاورة */
+.task-row:has(.task-row-menu) {
+  z-index: 30;
 }
 
 .task-row.is-dragging {

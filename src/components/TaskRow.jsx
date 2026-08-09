@@ -82,9 +82,17 @@ export default function TaskRow({
     const close = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
     };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    // click بدل mousedown حتى لا يُقطع تفاعل حقل التاريخ قبل اكتمال النقر
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
   }, [menuOpen]);
+
+  const runMenuAction = (fn) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuOpen(false);
+    fn?.();
+  };
 
   return (
     <div
@@ -219,7 +227,12 @@ export default function TaskRow({
         )}
       </div>
 
-      <div className="task-row-manage" ref={menuRef} onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className="task-row-manage"
+        ref={menuRef}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
         {isArchive ? (
           <>
             <button
@@ -261,38 +274,40 @@ export default function TaskRow({
               <i className="ph ph-dots-three-vertical" />
             </button>
             {menuOpen && (
-              <div className="task-row-menu" role="menu">
+              <div
+                className="task-row-menu"
+                role="menu"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onEdit?.(task.id);
-                  }}
+                  onClick={runMenuAction(() => onEdit?.(task.id))}
                 >
                   <i className="ph ph-pencil-simple" />
                   تعديل
                 </button>
 
-                <div className="task-row-menu-reschedule" onClick={(e) => e.stopPropagation()}>
+                <div className="task-row-menu-reschedule">
                   <label htmlFor={`reschedule-${task.id}`}>إعادة الجدولة — موعد جديد</label>
                   <input
                     id={`reschedule-${task.id}`}
                     type="date"
                     value={rescheduleDate}
                     onChange={(e) => setRescheduleDate(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
                   />
                   <button
                     type="button"
                     role="menuitem"
                     disabled={!rescheduleDate}
-                    onClick={() => {
+                    onClick={runMenuAction(() => {
                       if (!rescheduleDate) return;
-                      setMenuOpen(false);
                       onReschedule?.(task.id, rescheduleDate, {
                         reason: SCHEDULE_REASONS.reschedule,
                       });
-                    }}
+                    })}
                   >
                     <i className="ph ph-calendar-check" />
                     تأكيد الموعد الجديد
@@ -303,10 +318,7 @@ export default function TaskRow({
                   <button
                     type="button"
                     role="menuitem"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onSetStatus?.(task.id, 'deferred');
-                    }}
+                    onClick={runMenuAction(() => onSetStatus?.(task.id, 'deferred'))}
                   >
                     <i className="ph ph-pause-circle" />
                     تعليق — خارج الدورة
@@ -316,14 +328,13 @@ export default function TaskRow({
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
+                  onClick={runMenuAction(() => {
                     window.dispatchEvent(
                       new CustomEvent('open-task-notes', {
                         detail: { taskId: task.id, title: task.title },
                       })
                     );
-                  }}
+                  })}
                 >
                   <i className="ph ph-note-pencil" />
                   ملاحظات
@@ -331,14 +342,13 @@ export default function TaskRow({
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
+                  onClick={runMenuAction(() => {
                     window.dispatchEvent(
                       new CustomEvent('toggle-time-tracking', {
                         detail: { taskId: task.id, title: task.title },
                       })
                     );
-                  }}
+                  })}
                 >
                   <i className="ph ph-timer" />
                   تتبع الوقت
@@ -347,10 +357,7 @@ export default function TaskRow({
                   type="button"
                   role="menuitem"
                   className="is-danger"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onDelete?.(task.id);
-                  }}
+                  onClick={runMenuAction(() => onDelete?.(task.id))}
                 >
                   <i className="ph ph-archive" />
                   أرشفة
@@ -359,10 +366,7 @@ export default function TaskRow({
                   type="button"
                   role="menuitem"
                   className="is-danger"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onSetStatus?.(task.id, 'cancelled');
-                  }}
+                  onClick={runMenuAction(() => onSetStatus?.(task.id, 'cancelled'))}
                 >
                   <i className="ph ph-x-circle" />
                   إلغاء → أرشيف
@@ -374,7 +378,10 @@ export default function TaskRow({
                     rel="noreferrer"
                     role="menuitem"
                     className="task-row-menu-link"
-                    onClick={() => setMenuOpen(false)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                    }}
                   >
                     <i className="ph ph-arrow-square-out" />
                     فتح في تريلو

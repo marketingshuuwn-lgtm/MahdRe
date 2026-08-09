@@ -1,4 +1,4 @@
-/* صف المهمة — حالة فقط على اليسار؛ الموعد عبر التعديل أو ⋮ */
+/* صف المهمة — حالة فقط؛ الموعد عبر التعديل أو ⋮ */
 .task-row-daily {
   display: flex;
   flex-direction: column;
@@ -59,6 +59,7 @@
   display: flex;
   align-items: flex-start;
   padding-inline-start: 4px;
+  z-index: 2;
 }
 
 .task-row-menu-wrap {
@@ -67,24 +68,26 @@
 
 .task-row-menu {
   position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 40;
-  min-width: 200px;
-  margin-top: 4px;
+  top: calc(100% + 4px);
+  inset-inline-end: 0;
+  inset-inline-start: auto;
+  z-index: 80;
+  min-width: 220px;
+  max-width: min(280px, 90vw);
   padding: 6px;
   border-radius: 12px;
   border: 1px solid var(--border-color);
   background: var(--card-bg, var(--surface, #fff));
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
   display: flex;
   flex-direction: column;
   gap: 2px;
+  pointer-events: auto;
 }
 
 [data-theme='dark'] .task-row-menu {
   background: var(--card-bg, #1c1c1e);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
 
 .task-row-menu button,
@@ -104,9 +107,15 @@
   cursor: pointer;
   text-align: start;
   text-decoration: none;
+  pointer-events: auto;
 }
 
-.task-row-menu button:hover,
+.task-row-menu button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.task-row-menu button:hover:not(:disabled),
 .task-row-menu-link:hover {
   background: var(--accent-light, rgba(0, 0, 0, 0.05));
 }
@@ -122,6 +131,7 @@
   padding: 8px 10px;
   border-top: 1px solid var(--border-color);
   margin-top: 4px;
+  pointer-events: auto;
 }
 
 .task-row-menu-reschedule label {
@@ -137,6 +147,7 @@
   background: var(--surface, transparent);
   color: var(--text-primary);
   font: inherit;
+  pointer-events: auto;
 }
 
 .task-row.has-draft .task-row-title {
