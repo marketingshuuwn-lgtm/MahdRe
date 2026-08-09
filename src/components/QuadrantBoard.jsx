@@ -79,7 +79,6 @@ export default function QuadrantBoard({
   onMoveTask,
   onReorderInQuadrant,
   onAddTask,
-  onDeferTomorrow,
   onReschedule,
   workDays,
   workspaces = null,
@@ -243,7 +242,6 @@ export default function QuadrantBoard({
                           onToggleSubtask={onToggleSubtask}
                           onEdit={onEdit}
                           onDelete={onDelete}
-                          onDeferTomorrow={onDeferTomorrow}
                           onReschedule={onReschedule}
                           workDays={workDays}
                           workspaces={workspaces}

@@ -1,13 +1,11 @@
-/* نوايا الجدولة على الصف — مساحة نقر واضحة بلا تداخل */
+/* صف المهمة — حالة فقط على اليسار؛ الموعد عبر التعديل أو ⋮ */
 .task-row-daily {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
   flex-shrink: 0;
   padding-block: 2px;
-  /* يمنع سحب الصف من ابتلاع النقر */
   touch-action: manipulation;
 }
 
@@ -20,35 +18,6 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-}
-
-.task-row-defer {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  min-height: 36px;
-  border-radius: 10px;
-  border: 1px solid var(--border-color);
-  background: var(--surface, transparent);
-  color: var(--text-secondary);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
-  touch-action: manipulation;
-}
-
-.task-row-defer:hover,
-.task-row-defer:focus-visible {
-  color: var(--warning);
-  border-color: var(--warning);
-  background: var(--warning-light, rgba(245, 158, 11, 0.1));
-  outline: none;
-}
-
-.task-row-defer .ph {
-  font-size: 18px;
-  pointer-events: none;
 }
 
 .task-row-more-btn {

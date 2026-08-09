@@ -69,7 +69,6 @@ export default function PendingView({
   onEdit,
   onDelete,
   onAddTask,
-  onDeferTomorrow,
   onReschedule,
   workDays,
   workspaces = null,
@@ -224,7 +223,6 @@ export default function PendingView({
                     onToggleSubtask={onToggleSubtask}
                     onEdit={onEdit}
                     onDelete={onDelete}
-                    onDeferTomorrow={onDeferTomorrow}
                     onReschedule={onReschedule}
                     draggable={false}
                     workDays={workDays}

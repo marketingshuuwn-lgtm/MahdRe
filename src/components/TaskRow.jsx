@@ -37,10 +37,9 @@ function hasTaskDraft(taskId) {
 }
 
 /**
- * نوايا لا أدوات:
- * 1) غداً = لن أعمل عليها اليوم
- * 2) إعادة جدولة = موعد جديد للخطة (من ⋮)
- * 3) تعليق = خارج الدورة بلا تاريخ إلزامي (من ⋮)
+ * قرارات يومية سريعة: دورة الحالة فقط.
+ * تغيير الموعد: تعديل المهمة أو إعادة الجدولة من ⋮
+ * تعليق: خارج الدورة من ⋮
  */
 export default function TaskRow({
   task,
@@ -50,7 +49,6 @@ export default function TaskRow({
   onEdit,
   onDelete,
   onRestore,
-  onDeferTomorrow,
   onReschedule,
   variant = 'default',
   draggable = true,
@@ -131,21 +129,6 @@ export default function TaskRow({
             {status === 'in_progress' && <span className="status-dot" />}
             {status === 'deferred' && <i className="ph ph-pause" />}
           </button>
-
-          {status !== 'completed' && status !== 'cancelled' && (
-            <button
-              type="button"
-              className="task-row-defer"
-              title="غداً — لن أعمل عليها اليوم"
-              aria-label="غداً"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDeferTomorrow?.(task.id);
-              }}
-            >
-              <i className="ph ph-sun" />
-            </button>
-          )}
         </div>
       ) : (
         <span

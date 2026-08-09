@@ -26,8 +26,6 @@ import { useWorkDaysSetting } from './hooks/useWorkDaysSetting';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { exportTasksAsCsv, exportTasksAsXlsx, readImportFile } from './utils/importExport';
-import { tomorrowISO } from './utils/deferTomorrow';
-import { SCHEDULE_REASONS } from './utils/scheduleLog';
 import {
   ALL_WORKSPACES_ID,
   DEFAULT_WORK_DAYS,
@@ -315,11 +313,6 @@ export default function App() {
     closeModal();
   };
 
-  /** نية: لن أعمل عليها اليوم */
-  const handleDeferTomorrow = async (id) => {
-    await rescheduleTask(id, tomorrowISO(), { reason: SCHEDULE_REASONS.defer_tomorrow });
-  };
-
   const handleCreateWorkspace = ({ name, icon, colorIndex, trait }) => {
     const created = addWorkspace({ name, icon, colorIndex, trait });
     if (created) {
@@ -483,7 +476,6 @@ export default function App() {
                 onMoveTask={moveTask}
                 onReorderInQuadrant={reorderInQuadrant}
                 onAddTask={openAddModal}
-                onDeferTomorrow={handleDeferTomorrow}
                 onReschedule={rescheduleTask}
                 workDays={workDays}
                 workspaces={workspaces}
@@ -522,7 +514,6 @@ export default function App() {
             onEdit={openEditModal}
             onDelete={archiveTask}
             onAddTask={openAddModal}
-            onDeferTomorrow={handleDeferTomorrow}
             onReschedule={rescheduleTask}
             workDays={workDays}
             workspaces={workspaces}
