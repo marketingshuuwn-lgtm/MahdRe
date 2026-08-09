@@ -13,6 +13,7 @@ import {
   nextCycleStatus,
   normalizeTaskStatus,
 } from '../utils/taskStatus';
+import { SCHEDULE_REASONS } from '../utils/scheduleLog';
 
 const QUADRANT_COLORS = {
   'important-urgent': 'var(--danger)',
@@ -36,10 +37,10 @@ function hasTaskDraft(taskId) {
 }
 
 /**
- * طبقات الصف حسب تكرار الاستخدام:
- * 1) قرارات يومية: حالة + تأجيل لغد
- * 2) معلومات صامتة: متأخر / مؤجلة / دورية / مسودة / مساحة
- * 3) إدارة المهمة: قائمة ⋮
+ * نوايا لا أدوات:
+ * 1) غداً = لن أعمل عليها اليوم
+ * 2) إعادة جدولة = موعد جديد للخطة (من ⋮)
+ * 3) تعليق = خارج الدورة بلا تاريخ إلزامي (من ⋮)
  */
 export default function TaskRow({
   task,
@@ -50,6 +51,7 @@ export default function TaskRow({
   onDelete,
   onRestore,
   onDeferTomorrow,
+  onReschedule,
   variant = 'default',
   draggable = true,
   workDays,
@@ -70,7 +72,12 @@ export default function TaskRow({
   const draft = !isArchive && hasTaskDraft(task.id);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState(task.dueDate || '');
   const menuRef = useRef(null);
+
+  useEffect(() => {
+    setRescheduleDate(task.dueDate || '');
+  }, [task.dueDate, task.id]);
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -94,7 +101,6 @@ export default function TaskRow({
       }}
       onDragEnd={(e) => e.currentTarget.classList.remove('is-dragging')}
     >
-      {/* —— طبقة 1: قرارات يومية —— */}
       {!isArchive ? (
         <div className="task-row-daily" onMouseDown={(e) => e.stopPropagation()}>
           <button
@@ -112,10 +118,10 @@ export default function TaskRow({
             }}
             title={
               {
-                not_started: 'لم تبدأ — اضغط للبدء',
-                in_progress: 'قيد التنفيذ — اضغط للإكمال',
-                completed: 'مكتملة — اضغط لإعادة الفتح',
-                deferred: 'مؤجلة — اضغط لإعادة التنشيط',
+                not_started: 'لم تبدأ',
+                in_progress: 'قيد التنفيذ',
+                completed: 'مكتملة',
+                deferred: 'معلّقة — اضغط لإعادتها للدورة',
                 cancelled: 'ملغاة',
               }[status]
             }
@@ -123,20 +129,21 @@ export default function TaskRow({
           >
             {showAsCompleted && <i className="ph ph-check" />}
             {status === 'in_progress' && <span className="status-dot" />}
-            {status === 'deferred' && <i className="ph ph-clock" />}
+            {status === 'deferred' && <i className="ph ph-pause" />}
           </button>
 
           {status !== 'completed' && status !== 'cancelled' && (
             <button
               type="button"
               className="task-row-defer"
-              title="تأجيل إلى غداً"
+              title="غداً — لن أعمل عليها اليوم"
+              aria-label="غداً"
               onClick={(e) => {
                 e.stopPropagation();
                 onDeferTomorrow?.(task.id);
               }}
             >
-              <i className="ph ph-clock-countdown" />
+              <i className="ph ph-sun" />
             </button>
           )}
         </div>
@@ -169,30 +176,18 @@ export default function TaskRow({
             {task.title}
           </span>
 
-          {/* —— طبقة 2: معلومات صامتة —— */}
           <div className="task-row-chips">
-            <span
-              className="task-row-chip context"
-              title={`المساحة: ${contextMeta.label}`}
-            >
+            <span className="task-row-chip context" title={`المساحة: ${contextMeta.label}`}>
               <i className={`ph ${contextMeta.icon}`} />
               {contextMeta.label}
             </span>
-            {overdue && (
-              <span className="task-row-chip overdue-chip" title="متأخرة">
-                متأخرة
-              </span>
-            )}
+            {overdue && <span className="task-row-chip overdue-chip">متأخرة</span>}
             {status === 'deferred' && (
-              <span className="task-row-chip deferred" title="معلّقة / مؤجلة">
-                مؤجلة
+              <span className="task-row-chip deferred" title="خارج الدورة الحالية">
+                معلّقة
               </span>
             )}
-            {draft && (
-              <span className="task-row-chip draft-chip" title="مسودة محلية غير محفوظة">
-                مسودة
-              </span>
-            )}
+            {draft && <span className="task-row-chip draft-chip">مسودة</span>}
             {task.recurrence && (
               <span className="task-row-chip mute" title="متكررة">
                 <i className="ph ph-arrows-clockwise" />
@@ -241,7 +236,6 @@ export default function TaskRow({
         )}
       </div>
 
-      {/* —— طبقة 3: إدارة المهمة —— */}
       <div className="task-row-manage" ref={menuRef} onMouseDown={(e) => e.stopPropagation()}>
         {isArchive ? (
           <>
@@ -296,6 +290,46 @@ export default function TaskRow({
                   <i className="ph ph-pencil-simple" />
                   تعديل
                 </button>
+
+                <div className="task-row-menu-reschedule" onClick={(e) => e.stopPropagation()}>
+                  <label htmlFor={`reschedule-${task.id}`}>إعادة الجدولة — موعد جديد</label>
+                  <input
+                    id={`reschedule-${task.id}`}
+                    type="date"
+                    value={rescheduleDate}
+                    onChange={(e) => setRescheduleDate(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={!rescheduleDate}
+                    onClick={() => {
+                      if (!rescheduleDate) return;
+                      setMenuOpen(false);
+                      onReschedule?.(task.id, rescheduleDate, {
+                        reason: SCHEDULE_REASONS.reschedule,
+                      });
+                    }}
+                  >
+                    <i className="ph ph-calendar-check" />
+                    تأكيد الموعد الجديد
+                  </button>
+                </div>
+
+                {status !== 'deferred' && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onSetStatus?.(task.id, 'deferred');
+                    }}
+                  >
+                    <i className="ph ph-pause-circle" />
+                    تعليق — خارج الدورة
+                  </button>
+                )}
+
                 <button
                   type="button"
                   role="menuitem"
@@ -326,19 +360,6 @@ export default function TaskRow({
                   <i className="ph ph-timer" />
                   تتبع الوقت
                 </button>
-                {status !== 'deferred' && (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onSetStatus?.(task.id, 'deferred');
-                    }}
-                  >
-                    <i className="ph ph-pause-circle" />
-                    تعليق (مؤجلة)
-                  </button>
-                )}
                 <button
                   type="button"
                   role="menuitem"
