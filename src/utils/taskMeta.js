@@ -82,7 +82,10 @@ export const WORKSPACE_COLORS = [
 /**
  * خلفيات سطح المساحة — تدرجات + ألوان صلبة (بدون صور).
  * css يُطبَّق كطبقة تحت المحتوى مع غطاء قراءة خفيف.
- * dark: true → غطاء أفتح قليلاً ليبقى النص واضحاً.
+ * dark: true → تدرج/لون داكن.
+ *
+ * ملاحظة: الألوان الصلبة تُحوَّل في getWorkspaceBackground إلى linear-gradient
+ * لأن background-image لا يقبل hex مباشرة.
  */
 export const WORKSPACE_BACKGROUNDS = [
   { id: 'none', name: 'افتراضي', kind: 'none', css: '', emoji: '∅' },
@@ -165,7 +168,7 @@ export const WORKSPACE_BACKGROUNDS = [
     emoji: '📋',
     dark: true,
   },
-  // صلبة
+  // صلبة — تُلف كـ gradient في getWorkspaceBackground
   { id: 'solid-blue', name: 'أزرق', kind: 'solid', css: '#2563eb', emoji: '', dark: true },
   { id: 'solid-gold', name: 'ذهبي', kind: 'solid', css: '#ca8a04', emoji: '', dark: true },
   { id: 'solid-green', name: 'أخضر', kind: 'solid', css: '#16a34a', emoji: '', dark: true },
@@ -177,9 +180,16 @@ export const WORKSPACE_BACKGROUNDS = [
   { id: 'solid-slate', name: 'رمادي', kind: 'solid', css: '#64748b', emoji: '', dark: true },
 ];
 
+/** يعيد تعريف الخلفية مع css صالح دائماً لـ background-image */
 export function getWorkspaceBackground(surfaceId) {
   const id = surfaceId || 'none';
-  return WORKSPACE_BACKGROUNDS.find((b) => b.id === id) || WORKSPACE_BACKGROUNDS[0];
+  const found = WORKSPACE_BACKGROUNDS.find((b) => b.id === id) || WORKSPACE_BACKGROUNDS[0];
+  let css = found.css || '';
+  // hex/rgb وحدها غير صالحة كـ background-image
+  if (found.kind === 'solid' && css && !/gradient/i.test(css)) {
+    css = `linear-gradient(180deg, ${css}, ${css})`;
+  }
+  return { ...found, css };
 }
 
 export const WORKSPACE_ICONS = [
