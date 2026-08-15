@@ -6,6 +6,7 @@ import TimelineView from './components/TimelineView';
 import GanttView from './components/GanttView';
 import PlannerView from './components/PlannerView';
 import PendingView from './components/PendingView';
+import TodayView from './components/TodayView';
 import KpiView from './components/KpiView';
 import BreakSpace from './components/BreakSpace';
 import FloatingTimer from './components/FloatingTimer';
@@ -131,7 +132,7 @@ export default function App() {
     ensureContextsFromTasks,
   } = useWorkspaces();
 
-  const [view, setView] = useState('Matrix');
+  const [view, setView] = useState('Today');
   const [subview, setSubview] = useState('Board');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'light');
@@ -527,6 +528,22 @@ export default function App() {
         />
 
         <div className="view-transition" key={view}>
+        {view === 'Today' && (
+          <TodayView
+            tasks={visibleTasks}
+            onToggleComplete={toggleComplete}
+            onSetStatus={setTaskStatus}
+            onToggleSubtask={toggleSubtask}
+            onEdit={openEditModal}
+            onDelete={archiveTask}
+            onAddTask={openAddModal}
+            onReschedule={rescheduleTask}
+            onOpenAllTasks={() => setView('Matrix')}
+            workDays={workDays}
+            workspaces={workspaces}
+          />
+        )}
+
         {view === 'Matrix' && (
           <div id="viewMatrix">
             <div className="matrix-topbar">

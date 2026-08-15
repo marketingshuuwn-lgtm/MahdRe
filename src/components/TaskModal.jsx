@@ -378,7 +378,18 @@ export default function TaskModal({
                     !wasRecurring && willBeRecurring && Number(form.duration) <= 1
                       ? DEFAULT_RECURRENCE_LIFETIME_DAYS
                       : form.duration;
-                  setForm({ ...form, recurrence: opt.id, duration: nextDuration });
+                  const nextRecurrenceDays =
+                    opt.id === 'weekly' && form.recurrenceDays.length === 0
+                      ? [...workDays]
+                      : opt.id === 'weekly'
+                        ? form.recurrenceDays
+                        : [];
+                  setForm({
+                    ...form,
+                    recurrence: opt.id,
+                    duration: nextDuration,
+                    recurrenceDays: nextRecurrenceDays,
+                  });
                 }}
               >
                 {opt.label}
@@ -422,7 +433,7 @@ export default function TaskModal({
             />
           </div>
           <div className="form-field" style={{ flex: 1 }}>
-            <label>{isRecurring ? 'عمر التكرار (أيام)' : 'مدة المشروع (أيام متصلة)'}</label>
+            <label>{isRecurring ? 'مدة التكرار (بالأيام)' : 'مدة المشروع (أيام متصلة)'}</label>
             <input
               type="number"
               min="1"
@@ -432,13 +443,13 @@ export default function TaskModal({
             />
             <p className="form-hint">
               {isRecurring
-                ? 'مثال: 40 = تنزل في الأيام المحددة لمدة 40 يوماً من البداية ثم تتوقف'
-                : 'أيام متصلة لمشروع واحد'}
+                ? 'تُنشأ نسخة في الأيام المحددة طوال هذه المدة، ثم يتوقف التكرار.'
+                : 'عدد الأيام المتصلة التي تغطيها المهمة'}
             </p>
             {isRecurring && Number(form.duration) <= 1 && (
               <p className="form-hint" style={{ color: 'var(--danger)', fontWeight: 700 }}>
-                ⚠️ بهذي القيمة (يوم واحد) المهمة راح تظهر مرة وحدة بس ولن تتكرر فعلياً — ارفع
-                الرقم (مثلاً 365) حتى يشتغل التكرار.
+                بهذه القيمة ستظهر المهمة مرة واحدة فقط. ارفع المدة إلى عدد الأيام الذي تحتاجه،
+                مثل 365 للتكرار السنوي.
               </p>
             )}
           </div>

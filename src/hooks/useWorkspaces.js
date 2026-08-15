@@ -174,21 +174,21 @@ export function useWorkspaces() {
     });
   }, []);
 
-  const addWorkspace = useCallback(({ name, icon, colorIndex, trait, description, surface }) => {
-    const label = String(name || '').trim();
-    if (!label) return null;
+  const addWorkspace = useCallback(
+    ({ name, icon, colorIndex, trait, description, surface }) => {
+      const label = String(name || '').trim();
+      if (!label) return null;
 
-    let id = slugifyWorkspaceName(label);
-    setWorkspaces((prev) => {
-      const existingIds = new Set(prev.map((w) => w.id));
-      if (existingIds.has(id)) {
-        id = `${id}-${Date.now().toString(36).slice(-4)}`;
-      }
-      const palette = WORKSPACE_COLORS[(colorIndex ?? prev.length) % WORKSPACE_COLORS.length];
+      const baseId = slugifyWorkspaceName(label);
+      const existingIds = new Set(workspaces.map((w) => w.id));
+      const id = existingIds.has(baseId)
+        ? `${baseId}-${Date.now().toString(36).slice(-4)}`
+        : baseId;
+      const palette = WORKSPACE_COLORS[(colorIndex ?? workspaces.length) % WORKSPACE_COLORS.length];
       const next = {
         id,
         label,
-        icon: icon || WORKSPACE_ICONS[prev.length % WORKSPACE_ICONS.length],
+        icon: icon || WORKSPACE_ICONS[workspaces.length % WORKSPACE_ICONS.length],
         color: palette.color,
         bg: palette.bg,
         isDefault: false,
@@ -197,11 +197,13 @@ export function useWorkspaces() {
         description: typeof description === 'string' ? description.trim().slice(0, 200) : '',
         surface: normalizeSurface(surface),
       };
-      return [...prev, next];
-    });
-    setActiveWorkspaceIdState(id);
-    return { id, label };
-  }, []);
+
+      setWorkspaces((prev) => (prev.some((w) => w.id === id) ? prev : [...prev, next]));
+      setActiveWorkspaceIdState(id);
+      return { id, label };
+    },
+    [workspaces]
+  );
 
   const updateWorkspace = useCallback((id, patch) => {
     setWorkspaces((prev) =>

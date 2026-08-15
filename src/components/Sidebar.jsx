@@ -3,10 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 /** يومي: مهام + معلقة — أدوات: تقارير / استراحة / مفكرة / أرشيف / إعدادات */
 const NAV_GROUPS = [
   {
-    id: 'daily',
+      id: 'daily',
     label: 'يومي',
     items: [
-      { id: 'Matrix', label: 'المهام', icon: 'ph-squares-four', hint: 'Alt+1' },
+      { id: 'Today', label: 'اليوم', icon: 'ph-sun-dim' },
+      { id: 'Matrix', label: 'كل المهام', icon: 'ph-squares-four', hint: 'Alt+1' },
       { id: 'Pending', label: 'المعلقة', icon: 'ph-hourglass', hint: 'Alt+2' },
     ],
   },

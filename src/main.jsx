@@ -20,6 +20,7 @@ import './styles/task-status.css';
 import './styles/task-row-layers.css';
 import './styles/planner.css';
 import './styles/task-search.css';
+import './styles/today.css';
 
 /* 3. Design system */
 import './styles/design-system.css';

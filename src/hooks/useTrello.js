@@ -201,7 +201,6 @@ export function useTrello(showToast, onSynced) {
 
         let created = 0;
         let updated = 0;
-        let completedFromTrello = 0;
         const now = new Date().toISOString();
 
         for (const card of cards) {
@@ -246,22 +245,8 @@ export function useTrello(showToast, onSynced) {
           }
         }
 
-        for (const prev of byExternal.values()) {
-          if (prev.completed) continue;
-          const { error } = await supabase
-            .from('tasks')
-            .update({
-              completed: true,
-              status: 'completed',
-              completed_at: now,
-              context: TRELLO_WORKSPACE_ID,
-              last_synced_at: now,
-            })
-            .eq('id', prev.id);
-          if (error) console.error(error);
-          else completedFromTrello += 1;
-        }
-
+        // عدم ظهور البطاقة في قائمة open لا يثبت أنها أُنجزت؛ قد تكون أُسندت
+        // لعضو آخر أو تغيّرت صلاحيات الوصول أو تغيّرت الفلترة في Trello.
         await supabase
           .from('integrations')
           .update({ last_sync_at: now, updated_at: now, api_key: null, access_token: null })
@@ -270,17 +255,14 @@ export function useTrello(showToast, onSynced) {
         await loadConfig({ quiet: true });
         onSynced?.();
 
-        if (!silent && (created > 0 || completedFromTrello > 0)) {
-          const parts = [];
-          if (created > 0) parts.push(created + ' جديدة');
-          if (completedFromTrello > 0) parts.push(completedFromTrello + ' مكتملة من تريلو');
-          showToast?.('مزامنة تريلو: ' + parts.join('، '), 'ph-arrows-clockwise');
+        if (!silent && created > 0) {
+          showToast?.('مزامنة تريلو: ' + created + ' مهمة جديدة', 'ph-arrows-clockwise');
         }
 
         return {
           created,
           updated,
-          completed: completedFromTrello,
+          completed: 0,
           total: cards.length,
         };
       } catch (err) {
